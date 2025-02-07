@@ -80,7 +80,7 @@
                 const tableId = `datatable-${index}`;
                 const toggleId = `toggle-${index}`;
                 
-                let tableHTML = `<h3>${product} <button class='toggle-btn' id='${toggleId}'>Toggle % Change</button></h3><table id='${tableId}' class='display'><thead><tr><th>Date</th>`;
+                let tableHTML = `<h3>${product} <button class='toggle-btn' id='${toggleId}'>% Change</button></h3><table id='${tableId}' class='display'><thead><tr><th>Date</th>`;
                 instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
                 tableHTML += `<th>Total</th></tr></thead><tbody>`;
                 
@@ -123,7 +123,7 @@
                     percentageData[percentageData.length - 1].push(prevValue !== null ? `${change.toFixed(2)}%` : "-");
                 });
                 latestRow.push(`<strong>${latestTotal}</strong>`);
-                absoluteData.push(latestRow);
+                absoluteData.push(`<strong>${latestRow}</strong>`);
                 
                 tableHTML += `</tbody></table>`;
                 container.innerHTML += tableHTML;
