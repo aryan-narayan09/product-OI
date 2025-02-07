@@ -9,31 +9,31 @@
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        table { width: 50%; border-collapse: collapse; margin-bottom: 30px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; position: relative; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
         th { background-color: #f4f4f4; }
         .highlight { background-color: #ffefc1; font-weight: bold; }
-        .tooltip {
-            position: absolute;
-            background: white;
-            border: 1px solid black;
-            padding: 3px;
-            font-size: 12px;
-            display: none;
-            pointer-events: none;
-        }
+        .toggle-btn { margin-bottom: 10px; cursor: pointer; padding: 5px 10px; border: 1px solid #ddd; background-color: #f4f4f4; }
     </style>
 </head>
 <body>
     <h2>Open Interest Data</h2>
     <div id="tables-container"></div>
+    
     <script>
         async function fetchData() {
             const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json";
             const currentUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/current_oi.json";
+
             try {
-                const mainData = await (await fetch(mainUrl)).json();
-                const currentData = await (await fetch(currentUrl)).json();
+                const mainResponse = await fetch(mainUrl);
+                if (!mainResponse.ok) throw new Error("HTTP error " + mainResponse.status);
+                const mainData = await mainResponse.json();
+
+                const currentResponse = await fetch(currentUrl);
+                if (!currentResponse.ok) throw new Error("HTTP error " + currentResponse.status);
+                const currentData = await currentResponse.json();
+
                 generateTables(mainData, currentData);
             } catch (error) {
                 console.error("Fetch Error:", error);
@@ -44,30 +44,33 @@
         function generateTables(mainData, currentData) {
             const container = document.getElementById("tables-container");
             container.innerHTML = "";
+            
             const groupedData = {};
             const instrumentOrder = {};
             const dateOrder = {};
             const currentOIMap = {};
 
             currentData.forEach(entry => {
-                if (!currentOIMap[entry.Product]) currentOIMap[entry.Product] = {};
-                currentOIMap[entry.Product][entry.Instrument] = entry["Open Interest"];
+                const { Product, Instrument, "Open Interest": OpenInterest } = entry;
+                if (!currentOIMap[Product]) currentOIMap[Product] = {};
+                currentOIMap[Product][Instrument] = OpenInterest;
             });
 
             mainData.forEach(entry => {
-                if (!groupedData[entry.Product]) {
-                    groupedData[entry.Product] = {};
-                    instrumentOrder[entry.Product] = [];
-                    dateOrder[entry.Product] = [];
+                const { Product, Date, Instrument, "Open Interest": OpenInterest } = entry;
+                if (!groupedData[Product]) {
+                    groupedData[Product] = {};
+                    instrumentOrder[Product] = [];
+                    dateOrder[Product] = [];
                 }
-                if (!groupedData[entry.Product][entry.Date]) {
-                    groupedData[entry.Product][entry.Date] = {};
-                    dateOrder[entry.Product].push(entry.Date);
+                if (!groupedData[Product][Date]) {
+                    groupedData[Product][Date] = {};
+                    dateOrder[Product].push(Date);
                 }
-                if (!instrumentOrder[entry.Product].includes(entry.Instrument)) {
-                    instrumentOrder[entry.Product].push(entry.Instrument);
+                if (!instrumentOrder[Product].includes(Instrument)) {
+                    instrumentOrder[Product].push(Instrument);
                 }
-                groupedData[entry.Product][entry.Date][entry.Instrument] = entry["Open Interest"];
+                groupedData[Product][Date][Instrument] = OpenInterest;
             });
 
             Object.keys(groupedData).forEach((product, index) => {
@@ -75,13 +78,17 @@
                 const instruments = instrumentOrder[product];
                 const dates = dateOrder[product];
                 const tableId = `datatable-${index}`;
-                let tableHTML = `<h3>${product}</h3><table id="${tableId}" class="display"><thead><tr><th>Date</th>`;
+                const toggleId = `toggle-${index}`;
+                
+                let tableHTML = `<h3>${product} <button class='toggle-btn' id='${toggleId}'>Toggle % Change</button></h3><table id='${tableId}' class='display'><thead><tr><th>Date</th>`;
                 instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
                 tableHTML += `<th>Total</th></tr></thead><tbody>`;
+                
                 let previousValues = {};
-                let percentageChanges = {};
-                instruments.forEach(inst => percentageChanges[inst] = []);
-
+                let columnChanges = {};
+                instruments.forEach(inst => columnChanges[inst] = []);
+                columnChanges["Total"] = [];
+                
                 dates.forEach(date => {
                     let rowTotal = 0;
                     tableHTML += `<tr><td>${date}</td>`;
@@ -89,55 +96,43 @@
                         let value = productData[date][inst] || 0;
                         let prevValue = previousValues[inst] || null;
                         let change = prevValue !== null ? ((value - prevValue) / prevValue) * 100 : 0;
-                        percentageChanges[inst].push(change);
+                        columnChanges[inst].push(change);
                         rowTotal += value;
-                        tableHTML += `<td data-change="${change.toFixed(2)}">${value || "-"}</td>`;
+                        tableHTML += `<td>${value || "-"}</td>`;
                         previousValues[inst] = value;
                     });
+                    columnChanges["Total"].push(rowTotal);
                     tableHTML += `<td><strong>${rowTotal}</strong></td></tr>`;
                 });
-                let latestRowTotal = 0;
-                tableHTML += `<tr class="highlight"><td>Latest</td>`;
-                instruments.forEach(inst => {
-                    let latestOI = currentOIMap[product]?.[inst] || 0;
-                    let prevValue = previousValues[inst] || null;
-                    let change = prevValue !== null ? ((latestOI - prevValue) / prevValue) * 100 : 0;
-                    percentageChanges[inst].push(change);
-                    latestRowTotal += latestOI;
-                    tableHTML += `<td data-change="${change.toFixed(2)}">${latestOI || "-"}</td>`;
-                });
-                tableHTML += `<td><strong>${latestRowTotal}</strong></td></tr>`;
+                
                 tableHTML += `</tbody></table>`;
                 container.innerHTML += tableHTML;
+                
                 setTimeout(() => {
-                    $(`#${tableId}`).DataTable({ paging: false, searching: false, ordering: false, info: false });
+                    const table = $(`#${tableId}`).DataTable({
+                        paging: false,
+                        searching: false,
+                        ordering: false,
+                        info: false,
+                        autoWidth: false,
+                        responsive: true
+                    });
+                    
+                    document.getElementById(toggleId).addEventListener("click", () => {
+                        table.rows().every(function () {
+                            let rowData = this.data();
+                            rowData.forEach((val, i) => {
+                                if (i > 0) {
+                                    let change = columnChanges[instruments[i - 1]]?.[this.index()] || 0;
+                                    this.cell(this.index(), i).data(`${change.toFixed(2)}%`);
+                                }
+                            });
+                        });
+                    });
                 }, 100);
-                applyColumnColoring(`#${tableId}`, instruments, percentageChanges);
             });
         }
-
-        function applyColumnColoring(tableId, instruments, percentageChanges) {
-            const rows = document.querySelectorAll(`${tableId} tbody tr`);
-            instruments.forEach((inst, colIndex) => {
-                let changes = percentageChanges[inst];
-                let maxChange = Math.max(...changes);
-                let minChange = Math.min(...changes);
-                rows.forEach((row, rowIndex) => {
-                    let cell = row.cells[colIndex + 1];
-                    let change = changes[rowIndex];
-                    let color = getHSLColor(change, minChange, maxChange);
-                    cell.style.backgroundColor = color;
-                    cell.title = `${change.toFixed(2)}%`;
-                });
-            });
-        }
-
-        function getHSLColor(value, min, max) {
-            let percent = (value - min) / (max - min);
-            let hue = percent * 120;
-            return `hsl(${hue}, 100%, 80%)`;
-        }
-
+        
         fetchData();
     </script>
 </body>
