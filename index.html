@@ -41,36 +41,41 @@
         function generateTables(data) {
             const container = document.getElementById("tables-container");
             container.innerHTML = ""; // Clear previous tables
-
-            // Group data by product
+        
+            // Group data by Product
             const groupedData = {};
             data.forEach(entry => {
-                if (!groupedData[entry.product]) {
-                    groupedData[entry.product] = {};
+                const product = entry["Product"];  // Correct capitalization
+                const date = entry["Date"];
+                const instrument = entry["Instrument"];
+                const openInterest = entry["Open Interest"];
+        
+                if (!groupedData[product]) {
+                    groupedData[product] = {};
                 }
-                if (!groupedData[entry.product][entry.date]) {
-                    groupedData[entry.product][entry.date] = {};
+                if (!groupedData[product][date]) {
+                    groupedData[product][date] = {};
                 }
-                groupedData[entry.product][entry.date][entry.instrument] = entry["open interest"];
+                groupedData[product][date][instrument] = openInterest;
             });
-
-            // Create tables for each product
+        
+            // Create tables for each Product
             Object.keys(groupedData).forEach(product => {
                 const productData = groupedData[product];
-
+        
                 // Get all unique instruments
                 const instruments = new Set();
                 Object.values(productData).forEach(row => {
                     Object.keys(row).forEach(instrument => instruments.add(instrument));
                 });
-
+        
                 const instrumentList = Array.from(instruments).sort(); // Sort for consistency
-
+        
                 // Create table
                 let tableHTML = `<h3>${product}</h3><table><tr><th>Date</th>`;
                 instrumentList.forEach(inst => tableHTML += `<th>${inst}</th>`);
                 tableHTML += `</tr>`;
-
+        
                 // Fill table rows
                 Object.keys(productData).sort().forEach(date => {
                     tableHTML += `<tr><td>${date}</td>`;
@@ -79,11 +84,12 @@
                     });
                     tableHTML += `</tr>`;
                 });
-
+        
                 tableHTML += `</table>`;
                 container.innerHTML += tableHTML;
             });
         }
+
 
         fetchData();
     </script>
