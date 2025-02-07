@@ -113,18 +113,23 @@
                     percentageData.push(rowPercentage);
                 });
 
-                let latestRow = ["Latest"];
+                let latestRowAbsolute = ["Latest"];
+                let latestRowPercentage = ["Latest"];
                 let latestTotal = 0;
+                
                 instruments.forEach(inst => {
                     let latestOI = currentOIMap[product]?.[inst] || 0;
                     let prevValue = previousValues[inst] || null;
                     let change = prevValue !== null ? ((latestOI - prevValue) / prevValue) * 100 : 0;
                     latestTotal += latestOI;
-                    latestRow.push(prevValue !== null ? `${change.toFixed(2)}%` : "-");
+                    latestRowAbsolute.push(`<strong>${latestOI}</strong>`);
+                    latestRowPercentage.push(prevValue !== null ? `<strong>${change.toFixed(2)}%</strong>` : "-");
                 });
-                latestRow.push(`<strong>${latestTotal}</strong>`);
-                percentageData.push(latestRow);
-                absoluteData.push(latestRow.map(cell => `<strong>${cell}</strong>`));
+                latestRowAbsolute.push(`<strong>${latestTotal}</strong>`);
+                latestRowPercentage.push(`<strong>${latestTotal}</strong>`);
+                
+                absoluteData.push(latestRowAbsolute);
+                percentageData.push(latestRowPercentage);
                 
                 tableHTML += `</tbody></table>`;
                 container.innerHTML += tableHTML;
@@ -138,9 +143,7 @@
                         autoWidth: false,
                         responsive: true,
                         data: absoluteData,
-                        columns: [{ title: "Date" }].concat(instruments.map(inst => ({ title: inst })), [{ title: "Total" }])
                     });
-                    
                     let isAbsolute = true;
                     document.getElementById(toggleId).addEventListener("click", () => {
                         isAbsolute = !isAbsolute;
