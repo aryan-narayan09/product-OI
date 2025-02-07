@@ -3,28 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Read GitHub File with Fetch</title>
+    <title>Open Interest Tables</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
 </head>
 <body>
-    <h2>File Content:</h2>
-    <pre id="fileContent">Loading...</pre>
+
+    <h2>Open Interest Data</h2>
+    <div id="tables-container"></div>
 
     <script>
-        async function fetchFile() {
-            const url = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json?t=" + new Date().getTime();
-            
+        async function fetchData() {
+            const url = "https://raw.githubusercontent.com/your-username/shared-text-files/main/data.json"; // Update URL
             try {
                 const response = await fetch(url);
                 if (!response.ok) throw new Error("HTTP error " + response.status);
-                const text = await response.text();
-                document.getElementById("fileContent").textContent = text;
+                const data = await response.json();
+                generateTables(data);
             } catch (error) {
-                document.getElementById("fileContent").textContent = "Error loading file: " + error;
+                document.getElementById("tables-container").innerHTML = "Error loading data: " + error;
             }
         }
 
-        fetchFile();
-        setInterval(fetchFile, 6000); // Refresh every 60 seconds
+        function generateTables(data) {
+            const container = document.getElementById("tables-container");
+            container.innerHTML = ""; // Clear previous tables
+
+            // Group data by product
+            const groupedData = {};
+            data.forEach(entry => {
+                if (!groupedData[entry.product]) {
+                    groupedData[entry.product] = {};
+                }
+                if (!groupedData[entry.product][entry.date]) {
+                    groupedData[entry.product][entry.date] = {};
+                }
+                groupedData[entry.product][entry.date][entry.instrument] = entry["open interest"];
+            });
+
+            // Create tables for each product
+            Object.keys(groupedData).forEach(product => {
+                const productData = groupedData[product];
+
+                // Get all unique instruments
+                const instruments = new Set();
+                Object.values(productData).forEach(row => {
+                    Object.keys(row).forEach(instrument => instruments.add(instrument));
+                });
+
+                const instrumentList = Array.from(instruments).sort(); // Sort for consistency
+
+                // Create table
+                let tableHTML = `<h3>${product}</h3><table><tr><th>Date</th>`;
+                instrumentList.forEach(inst => tableHTML += `<th>${inst}</th>`);
+                tableHTML += `</tr>`;
+
+                // Fill table rows
+                Object.keys(productData).sort().forEach(date => {
+                    tableHTML += `<tr><td>${date}</td>`;
+                    instrumentList.forEach(inst => {
+                        tableHTML += `<td>${productData[date][inst] || "-"}</td>`;
+                    });
+                    tableHTML += `</tr>`;
+                });
+
+                tableHTML += `</table>`;
+                container.innerHTML += tableHTML;
+            });
+        }
+
+        fetchData();
     </script>
+
 </body>
 </html>
