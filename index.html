@@ -10,7 +10,7 @@
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
         th { background-color: #f4f4f4; }
         .highlight { background-color: #ffefc1; font-weight: bold; } /* Highlight last row */
     </style>
@@ -22,22 +22,17 @@
 
     <script>
         async function fetchData() {
-            const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json"; // Update this
-            const currentUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/current_oi.json"; // Update this
+            const mainUrl = "https://raw.githubusercontent.com/your-username/shared-text-files/main/data.json"; // Update this
+            const currentUrl = "https://raw.githubusercontent.com/your-username/shared-text-files/main/current_oi.json"; // Update this
 
             try {
-                console.log("Fetching:", mainUrl);
                 const mainResponse = await fetch(mainUrl);
                 if (!mainResponse.ok) throw new Error("HTTP error " + mainResponse.status);
                 const mainData = await mainResponse.json();
 
-                console.log("Fetching:", currentUrl);
                 const currentResponse = await fetch(currentUrl);
                 if (!currentResponse.ok) throw new Error("HTTP error " + currentResponse.status);
                 const currentData = await currentResponse.json();
-
-                console.log("Fetched Data:", mainData);
-                console.log("Fetched Current OI:", currentData);
 
                 generateTables(mainData, currentData);
             } catch (error) {
@@ -53,51 +48,45 @@
             const groupedData = {};
             const instrumentOrder = {};
             const dateOrder = {};
-            const currentOIMap = {}; // Store latest OI data
+            const currentOIMap = {};
 
             // Process current_oi.json for quick lookup
             currentData.forEach(entry => {
-                const product = entry["Product"];
-                const instrument = entry["Instrument"];
-                const openInterest = entry["Open Interest"];
-
-                if (!currentOIMap[product]) currentOIMap[product] = {};
-                currentOIMap[product][instrument] = openInterest;
+                const { Product, Instrument, "Open Interest": OpenInterest } = entry;
+                if (!currentOIMap[Product]) currentOIMap[Product] = {};
+                currentOIMap[Product][Instrument] = OpenInterest;
             });
 
             // Process main JSON while maintaining order
             mainData.forEach(entry => {
-                const product = entry["Product"];
-                const date = entry["Date"];
-                const instrument = entry["Instrument"];
-                const openInterest = entry["Open Interest"];
-
-                if (!groupedData[product]) {
-                    groupedData[product] = {};
-                    instrumentOrder[product] = [];
-                    dateOrder[product] = [];
+                const { Product, Date, Instrument, "Open Interest": OpenInterest } = entry;
+                if (!groupedData[Product]) {
+                    groupedData[Product] = {};
+                    instrumentOrder[Product] = [];
+                    dateOrder[Product] = [];
                 }
-                if (!groupedData[product][date]) {
-                    groupedData[product][date] = {};
-                    dateOrder[product].push(date); // Preserve date order
+                if (!groupedData[Product][Date]) {
+                    groupedData[Product][Date] = {};
+                    dateOrder[Product].push(Date);
                 }
-                if (!instrumentOrder[product].includes(instrument)) {
-                    instrumentOrder[product].push(instrument); // Preserve instrument order
+                if (!instrumentOrder[Product].includes(Instrument)) {
+                    instrumentOrder[Product].push(Instrument);
                 }
-
-                groupedData[product][date][instrument] = openInterest;
+                groupedData[Product][Date][Instrument] = OpenInterest;
             });
 
             // Generate tables
             Object.keys(groupedData).forEach((product, index) => {
                 const productData = groupedData[product];
-                const instruments = instrumentOrder[product]; // Use preserved order
-                const dates = dateOrder[product]; // Use preserved order
-                const tableId = `datatable-${index}`; // Unique ID for each table
+                const instruments = instrumentOrder[product];
+                const dates = dateOrder[product];
+                const tableId = `datatable-${index}`;
 
                 let tableHTML = `<h3>${product}</h3><table id="${tableId}" class="display"><thead><tr><th>Date</th>`;
                 instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
-                tableHTML += `<th>Total</th></tr></thead><tbody>`; // Add "Total" column
+                tableHTML += `<th>Total</th></tr></thead><tbody>`;
+
+                let previousRow = {}; // Store previous day's data for coloring
 
                 // Fill table rows using preserved date order
                 dates.forEach(date => {
@@ -105,8 +94,12 @@
                     tableHTML += `<tr><td>${date}</td>`;
                     instruments.forEach(inst => {
                         let value = productData[date][inst] || 0;
-                        rowTotal += value; // Calculate total
-                        tableHTML += `<td>${value || "-"}</td>`;
+                        let prevValue = previousRow[inst] || null;
+                        rowTotal += value;
+
+                        let color = getColor(value, prevValue);
+                        tableHTML += `<td style="background-color: ${color};">${value || "-"}</td>`;
+                        previousRow[inst] = value; // Update previousRow for next iteration
                     });
                     tableHTML += `<td><strong>${rowTotal}</strong></td></tr>`;
                 });
@@ -116,26 +109,40 @@
                 tableHTML += `<tr class="highlight"><td>Latest</td>`;
                 instruments.forEach(inst => {
                     let latestOI = currentOIMap[product]?.[inst] || 0;
-                    latestRowTotal += latestOI; // Sum total for latest row
-                    tableHTML += `<td>${latestOI || "-"}</td>`;
+                    let prevValue = previousRow[inst] || null;
+                    latestRowTotal += latestOI;
+
+                    let color = getColor(latestOI, prevValue);
+                    tableHTML += `<td style="background-color: ${color};">${latestOI || "-"}</td>`;
                 });
                 tableHTML += `<td><strong>${latestRowTotal}</strong></td></tr>`;
 
                 tableHTML += `</tbody></table>`;
                 container.innerHTML += tableHTML;
 
-                // Initialize DataTables for this table after it's added to the DOM
                 setTimeout(() => {
                     $(`#${tableId}`).DataTable({
-                        paging: false,   // Disable pagination
-                        searching: false, // Disable search
-                        ordering: false,  // Disable sorting (to preserve order)
-                        info: false,      // Hide info text
+                        paging: false,
+                        searching: false,
+                        ordering: false,
+                        info: false,
                         autoWidth: false,
                         responsive: true
                     });
                 }, 100);
             });
+        }
+
+        function getColor(current, previous) {
+            if (previous === null || current === previous) return "#ffffff"; // No color if first row or no change
+            let diff = current - previous;
+            let intensity = Math.min(255, Math.abs(diff) * 5); // Scale color intensity
+
+            if (diff > 0) {
+                return `rgb(${255 - intensity}, 255, ${255 - intensity})`; // Green shades
+            } else {
+                return `rgb(255, ${255 - intensity}, ${255 - intensity})`; // Red shades
+            }
         }
 
         fetchData();
