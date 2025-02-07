@@ -85,11 +85,8 @@
                 tableHTML += `<th>Total</th></tr></thead><tbody>`;
                 
                 let previousValues = {};
-                let columnChanges = {};
                 let absoluteData = [];
                 let percentageData = [];
-                instruments.forEach(inst => columnChanges[inst] = []);
-                columnChanges["Total"] = [];
                 
                 dates.forEach(date => {
                     let rowTotal = 0;
@@ -100,7 +97,6 @@
                         let value = productData[date][inst] || 0;
                         let prevValue = previousValues[inst] || null;
                         let change = prevValue !== null ? ((value - prevValue) / prevValue) * 100 : 0;
-                        columnChanges[inst].push(change);
                         rowTotal += value;
                         rowAbsolute.push(value || "-");
                         rowPercentage.push(prevValue !== null ? `${change.toFixed(2)}%` : "-");
@@ -109,13 +105,25 @@
                     
                     let prevTotal = absoluteData.length > 0 ? absoluteData[absoluteData.length - 1].slice(1).reduce((a, b) => a + (parseFloat(b) || 0), 0) : null;
                     let totalChange = prevTotal !== null ? ((rowTotal - prevTotal) / prevTotal) * 100 : 0;
-                    columnChanges["Total"].push(totalChange);
                     rowAbsolute.push(`<strong>${rowTotal}</strong>`);
                     rowPercentage.push(prevTotal !== null ? `<strong>${totalChange.toFixed(2)}%</strong>` : "-");
                     
                     absoluteData.push(rowAbsolute);
                     percentageData.push(rowPercentage);
                 });
+
+                let latestRow = ["Latest"];
+                let latestTotal = 0;
+                instruments.forEach(inst => {
+                    let latestOI = currentOIMap[product]?.[inst] || 0;
+                    let prevValue = previousValues[inst] || null;
+                    let change = prevValue !== null ? ((latestOI - prevValue) / prevValue) * 100 : 0;
+                    latestTotal += latestOI;
+                    latestRow.push(latestOI || "-");
+                    percentageData[percentageData.length - 1].push(prevValue !== null ? `${change.toFixed(2)}%` : "-");
+                });
+                latestRow.push(`<strong>${latestTotal}</strong>`);
+                absoluteData.push(latestRow);
                 
                 tableHTML += `</tbody></table>`;
                 container.innerHTML += tableHTML;
