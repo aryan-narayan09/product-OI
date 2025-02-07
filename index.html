@@ -90,6 +90,7 @@
                 let columnChanges = {}; // Store daily changes for scaling
 
                 instruments.forEach(inst => columnChanges[inst] = []);
+                columnChanges["Total"] = [];
 
                 // Fill table rows
                 dates.forEach(date => {
@@ -106,6 +107,7 @@
                         tableHTML += `<td>${value || "-"}</td>`;
                         previousValues[inst] = value;
                     });
+                    columnChanges["Total"].push(rowTotal);
                     tableHTML += `<td><strong>${rowTotal}</strong></td></tr>`;
                 });
 
@@ -121,6 +123,7 @@
                     latestRowTotal += latestOI;
                     tableHTML += `<td>${latestOI || "-"}</td>`;
                 });
+                columnChanges["Total"].push(latestRowTotal);
                 tableHTML += `<td><strong>${latestRowTotal}</strong></td></tr>`;
 
                 tableHTML += `</tbody></table>`;
@@ -138,39 +141,32 @@
                 }, 100);
 
                 // Apply column-based relative coloring
-                applyColumnColoring(`#${tableId}`, instruments, columnChanges);
+                applyColumnColoring(`#${tableId}`, [...instruments, "Total"], columnChanges);
             });
         }
 
-        function applyColumnColoring(tableId, instruments, columnChanges) {
+        function applyColumnColoring(tableId, columns, columnChanges) {
             const rows = document.querySelectorAll(`${tableId} tbody tr`);
-            instruments.forEach((inst, colIndex) => {
-                let changes = columnChanges[inst];
-                let minChange = Math.min(...changes);
-                let maxChange = Math.max(...changes);
+            columns.forEach((col, colIndex) => {
+                let changes = columnChanges[col];
 
                 rows.forEach((row, rowIndex) => {
                     let cell = row.cells[colIndex + 1]; // +1 to skip Date column
-                    let value = parseFloat(cell.textContent);
-                    let prevValue = rowIndex > 0 ? parseFloat(rows[rowIndex - 1].cells[colIndex + 1].textContent) : null;
+                    let change = changes[rowIndex];
 
-                    if (!isNaN(value) && !isNaN(prevValue)) {
-                        let change = value - prevValue;
-                        let color = getRelativeColor(change, minChange, maxChange);
-                        cell.style.backgroundColor = color;
-                    }
+                    cell.style.backgroundColor = getBucketColor(change);
                 });
             });
         }
 
-        function getRelativeColor(change, min, max) {
-            if (min === max) return "#ffffff"; // No variation, neutral white
-
-            let percent = (change - min) / (max - min);
-            let red = Math.floor(255 * (1 - percent) * 0.7 + 255 * 0.3);
-            let green = Math.floor(255 * percent * 0.7 + 255 * 0.3);
-
-            return `rgb(${red}, ${green}, 200)`;
+        function getBucketColor(change) {
+            if (change > 100) return "#008000"; // Dark Green
+            if (change > 50) return "#66cc66";  // Medium Green
+            if (change > 0) return "#b3e6b3";   // Light Green
+            if (change === 0) return "#ffffff"; // White
+            if (change < -100) return "#800000"; // Dark Red
+            if (change < -50) return "#cc6666";  // Medium Red
+            if (change < 0) return "#e6b3b3";    // Light Red
         }
 
         fetchData();
