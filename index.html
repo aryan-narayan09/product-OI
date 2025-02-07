@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Open Interest Data</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <style>
@@ -14,7 +13,7 @@
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
         th { background-color: #f4f4f4; }
         .highlight { background-color: #ffefc1; font-weight: bold; }
-        .toggle-btn, .export-btn { margin-bottom: 10px; cursor: pointer; padding: 5px 10px; border: 1px solid #ddd; background-color: #f4f4f4; }
+        .toggle-btn { margin-bottom: 10px; cursor: pointer; padding: 5px 10px; border: 1px solid #ddd; background-color: #f4f4f4; }
         .bold-row td { font-weight: bold; }
     </style>
 </head>
@@ -81,9 +80,8 @@
                 const dates = dateOrder[product];
                 const tableId = `datatable-${index}`;
                 const toggleId = `toggle-${index}`;
-                const exportId = `export-${index}`;
                 
-                let tableHTML = `<h3>${product} <button class='toggle-btn' id='${toggleId}'>Toggle % Change</button> <button class='export-btn' id='${exportId}'>Export to Excel</button></h3><table id='${tableId}' class='display'><thead><tr><th>Date</th>`;
+                let tableHTML = `<h3>${product} <button class='toggle-btn' id='${toggleId}'>Toggle % Change</button></h3><table id='${tableId}' class='display'><thead><tr><th>Date</th>`;
                 instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
                 tableHTML += `<th>Total</th></tr></thead><tbody>`;
                 
@@ -114,6 +112,27 @@
                     absoluteData.push(rowAbsolute);
                     percentageData.push(rowPercentage);
                 });
+
+                let latestRowAbsolute = ["Latest"];
+                let latestRowPercentage = ["Latest"];
+                let latestTotal = 0;
+                let latestPrevTotal = 0;
+                
+                instruments.forEach(inst => {
+                    let latestOI = currentOIMap[product]?.[inst] || 0;
+                    let prevValue = previousValues[inst] || null;
+                    let change = prevValue !== null ? ((latestOI - prevValue) / prevValue) * 100 : 0;
+                    latestTotal += latestOI;
+                    latestPrevTotal += prevValue || 0;
+                    latestRowAbsolute.push(`<strong>${latestOI}</strong>`);
+                    latestRowPercentage.push(prevValue !== null ? `<strong>${change.toFixed(2)}%</strong>` : "-");
+                });
+                let latestTotalChange = latestPrevTotal !== 0 ? ((latestTotal - latestPrevTotal) / latestPrevTotal) * 100 : 0;
+                latestRowAbsolute.push(`<strong>${latestTotal}</strong>`);
+                latestRowPercentage.push(`<strong>${latestTotalChange.toFixed(2)}%</strong>`);
+                
+                absoluteData.push(latestRowAbsolute);
+                percentageData.push(latestRowPercentage);
                 
                 tableHTML += `</tbody></table>`;
                 container.innerHTML += tableHTML;
@@ -132,12 +151,6 @@
                     document.getElementById(toggleId).addEventListener("click", () => {
                         isAbsolute = !isAbsolute;
                         table.clear().rows.add(isAbsolute ? absoluteData : percentageData).draw();
-                    });
-                    document.getElementById(exportId).addEventListener("click", () => {
-                        let ws = XLSX.utils.aoa_to_sheet(isAbsolute ? absoluteData : percentageData);
-                        let wb = XLSX.utils.book_new();
-                        XLSX.utils.book_append_sheet(wb, ws, product);
-                        XLSX.writeFile(wb, `${product}_OI.xlsx`);
                     });
                 }, 100);
             });
