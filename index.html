@@ -9,44 +9,31 @@
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        table { width: 50%; border-collapse: collapse; margin-bottom: 30px; float: left; }
+        table { width: 50%; border-collapse: collapse; margin-bottom: 30px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; position: relative; }
         th { background-color: #f4f4f4; }
-        .highlight { background-color: #ffefc1; font-weight: bold; } /* Latest row */
-
-        /* Tooltip Styling */
+        .highlight { background-color: #ffefc1; font-weight: bold; }
         .tooltip {
             position: absolute;
-            background-color: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 5px;
-            border-radius: 4px;
+            background: white;
+            border: 1px solid black;
+            padding: 3px;
             font-size: 12px;
             display: none;
-            white-space: nowrap;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
-
     <h2>Open Interest Data</h2>
     <div id="tables-container"></div>
-    <div id="tooltip" class="tooltip"></div> <!-- Tooltip for percentage change -->
-
     <script>
         async function fetchData() {
-            const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json"; // Update
-            const currentUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/current_oi.json"; // Update
-
+            const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json";
+            const currentUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/current_oi.json";
             try {
-                const mainResponse = await fetch(mainUrl);
-                if (!mainResponse.ok) throw new Error("HTTP error " + mainResponse.status);
-                const mainData = await mainResponse.json();
-
-                const currentResponse = await fetch(currentUrl);
-                if (!currentResponse.ok) throw new Error("HTTP error " + currentResponse.status);
-                const currentData = await currentResponse.json();
-
+                const mainData = await (await fetch(mainUrl)).json();
+                const currentData = await (await fetch(currentUrl)).json();
                 generateTables(mainData, currentData);
             } catch (error) {
                 console.error("Fetch Error:", error);
@@ -56,131 +43,102 @@
 
         function generateTables(mainData, currentData) {
             const container = document.getElementById("tables-container");
-            container.innerHTML = ""; // Clear old tables
-
+            container.innerHTML = "";
             const groupedData = {};
             const instrumentOrder = {};
             const dateOrder = {};
             const currentOIMap = {};
 
-            // Process current_oi.json
             currentData.forEach(entry => {
-                const { Product, Instrument, "Open Interest": OpenInterest } = entry;
-                if (!currentOIMap[Product]) currentOIMap[Product] = {};
-                currentOIMap[Product][Instrument] = OpenInterest;
+                if (!currentOIMap[entry.Product]) currentOIMap[entry.Product] = {};
+                currentOIMap[entry.Product][entry.Instrument] = entry["Open Interest"];
             });
 
-            // Process main JSON while preserving order
             mainData.forEach(entry => {
-                const { Product, Date, Instrument, "Open Interest": OpenInterest } = entry;
-                if (!groupedData[Product]) {
-                    groupedData[Product] = {};
-                    instrumentOrder[Product] = [];
-                    dateOrder[Product] = [];
+                if (!groupedData[entry.Product]) {
+                    groupedData[entry.Product] = {};
+                    instrumentOrder[entry.Product] = [];
+                    dateOrder[entry.Product] = [];
                 }
-                if (!groupedData[Product][Date]) {
-                    groupedData[Product][Date] = {};
-                    dateOrder[Product].push(Date);
+                if (!groupedData[entry.Product][entry.Date]) {
+                    groupedData[entry.Product][entry.Date] = {};
+                    dateOrder[entry.Product].push(entry.Date);
                 }
-                if (!instrumentOrder[Product].includes(Instrument)) {
-                    instrumentOrder[Product].push(Instrument);
+                if (!instrumentOrder[entry.Product].includes(entry.Instrument)) {
+                    instrumentOrder[entry.Product].push(entry.Instrument);
                 }
-                groupedData[Product][Date][Instrument] = OpenInterest;
+                groupedData[entry.Product][entry.Date][entry.Instrument] = entry["Open Interest"];
             });
 
-            // Generate tables
             Object.keys(groupedData).forEach((product, index) => {
                 const productData = groupedData[product];
                 const instruments = instrumentOrder[product];
                 const dates = dateOrder[product];
                 const tableId = `datatable-${index}`;
-
                 let tableHTML = `<h3>${product}</h3><table id="${tableId}" class="display"><thead><tr><th>Date</th>`;
                 instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
                 tableHTML += `<th>Total</th></tr></thead><tbody>`;
+                let previousValues = {};
+                let percentageChanges = {};
+                instruments.forEach(inst => percentageChanges[inst] = []);
 
-                let previousValues = {}; // Track previous day's OI for each instrument
-                let columnChanges = {}; // Store daily percentage changes for scaling
-
-                instruments.forEach(inst => columnChanges[inst] = []);
-                columnChanges["Total"] = [];
-
-                // Fill table rows
                 dates.forEach(date => {
                     let rowTotal = 0;
                     tableHTML += `<tr><td>${date}</td>`;
                     instruments.forEach(inst => {
                         let value = productData[date][inst] || 0;
                         let prevValue = previousValues[inst] || null;
+                        let change = prevValue !== null ? ((value - prevValue) / prevValue) * 100 : 0;
+                        percentageChanges[inst].push(change);
                         rowTotal += value;
-
-                        let percentChange = prevValue !== null ? ((value - prevValue) / prevValue) * 100 : 0;
-                        columnChanges[inst].push(percentChange);
-
-                        tableHTML += `<td data-change="${percentChange.toFixed(2)}">${value || "-"}</td>`;
+                        tableHTML += `<td data-change="${change.toFixed(2)}">${value || "-"}</td>`;
                         previousValues[inst] = value;
                     });
-                    columnChanges["Total"].push(rowTotal);
                     tableHTML += `<td><strong>${rowTotal}</strong></td></tr>`;
                 });
-
+                let latestRowTotal = 0;
+                tableHTML += `<tr class="highlight"><td>Latest</td>`;
+                instruments.forEach(inst => {
+                    let latestOI = currentOIMap[product]?.[inst] || 0;
+                    let prevValue = previousValues[inst] || null;
+                    let change = prevValue !== null ? ((latestOI - prevValue) / prevValue) * 100 : 0;
+                    percentageChanges[inst].push(change);
+                    latestRowTotal += latestOI;
+                    tableHTML += `<td data-change="${change.toFixed(2)}">${latestOI || "-"}</td>`;
+                });
+                tableHTML += `<td><strong>${latestRowTotal}</strong></td></tr>`;
                 tableHTML += `</tbody></table>`;
                 container.innerHTML += tableHTML;
-
                 setTimeout(() => {
-                    $(`#${tableId}`).DataTable({
-                        paging: false,
-                        searching: false,
-                        ordering: false,
-                        info: false,
-                        autoWidth: false,
-                        responsive: true
-                    });
+                    $(`#${tableId}`).DataTable({ paging: false, searching: false, ordering: false, info: false });
                 }, 100);
-
-                applyPercentageColoring(`#${tableId}`, [...instruments, "Total"], columnChanges);
+                applyColumnColoring(`#${tableId}`, instruments, percentageChanges);
             });
         }
 
-        function applyPercentageColoring(tableId, columns, columnChanges) {
+        function applyColumnColoring(tableId, instruments, percentageChanges) {
             const rows = document.querySelectorAll(`${tableId} tbody tr`);
-            columns.forEach((col, colIndex) => {
-                let changes = columnChanges[col];
-                let minChange = Math.min(...changes);
+            instruments.forEach((inst, colIndex) => {
+                let changes = percentageChanges[inst];
                 let maxChange = Math.max(...changes);
-
+                let minChange = Math.min(...changes);
                 rows.forEach((row, rowIndex) => {
-                    let cell = row.cells[colIndex + 1]; // +1 to skip Date column
+                    let cell = row.cells[colIndex + 1];
                     let change = changes[rowIndex];
-
-                    cell.style.backgroundColor = getHSLColor(change, minChange, maxChange);
-                    cell.addEventListener("mouseenter", showTooltip);
-                    cell.addEventListener("mouseleave", hideTooltip);
+                    let color = getHSLColor(change, minChange, maxChange);
+                    cell.style.backgroundColor = color;
+                    cell.title = `${change.toFixed(2)}%`;
                 });
             });
         }
 
         function getHSLColor(value, min, max) {
-            let lightness = 50 + ((value - min) / (max - min)) * 50; // Adjust lightness
-            return value >= 0 ? `hsl(120, 100%, ${lightness}%)` : `hsl(0, 100%, ${lightness}%)`; // Green (120°) / Red (0°)
-        }
-
-        function showTooltip(event) {
-            const tooltip = document.getElementById("tooltip");
-            let percentChange = event.target.getAttribute("data-change");
-            tooltip.innerText = `${percentChange}%`;
-            tooltip.style.color = percentChange >= 0 ? "green" : "red";
-            tooltip.style.left = event.pageX + 10 + "px";
-            tooltip.style.top = event.pageY + 10 + "px";
-            tooltip.style.display = "block";
-        }
-
-        function hideTooltip() {
-            document.getElementById("tooltip").style.display = "none";
+            let percent = (value - min) / (max - min);
+            let hue = percent * 120;
+            return `hsl(${hue}, 100%, 80%)`;
         }
 
         fetchData();
     </script>
-
 </body>
 </html>
