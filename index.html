@@ -26,17 +26,6 @@
     <div id="tables-container"></div>
 
     <script>
-        async function fetchData() {
-            const url = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json"; // Update URL
-            try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error("HTTP error " + response.status);
-                const data = await response.json();
-                generateTables(data);
-            } catch (error) {
-                document.getElementById("tables-container").innerHTML = "Error loading data: " + error;
-            }
-        }
         
         function generateTables(data) {
             const container = document.getElementById("tables-container");
@@ -95,7 +84,7 @@
         
         // Fetch JSON data and call generateTables()
         async function fetchData() {
-            const url = "https://raw.githubusercontent.com/your-username/shared-text-files/main/data.json"; // Update this
+            const url = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json"; // Update this
             try {
                 console.log("Fetching:", url);
                 const response = await fetch(url);
