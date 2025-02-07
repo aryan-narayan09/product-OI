@@ -10,15 +10,28 @@
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; position: relative; }
         th { background-color: #f4f4f4; }
         .highlight { background-color: #ffefc1; font-weight: bold; } /* Latest row */
+
+        /* Tooltip styling */
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            display: none;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
 
     <h2>Open Interest Data</h2>
     <div id="tables-container"></div>
+    <div id="tooltip" class="tooltip"></div> <!-- Tooltip for percentage change -->
 
     <script>
         async function fetchData() {
@@ -87,7 +100,7 @@
                 tableHTML += `<th>Total</th></tr></thead><tbody>`;
 
                 let previousValues = {}; // Track previous day's OI for each instrument
-                let columnChanges = {}; // Store daily changes for scaling
+                let columnChanges = {}; // Store daily percentage changes for scaling
 
                 instruments.forEach(inst => columnChanges[inst] = []);
                 columnChanges["Total"] = [];
@@ -101,30 +114,15 @@
                         let prevValue = previousValues[inst] || null;
                         rowTotal += value;
 
-                        let change = prevValue !== null ? value - prevValue : 0;
-                        columnChanges[inst].push(change);
+                        let percentChange = prevValue !== null ? ((value - prevValue) / prevValue) * 100 : 0;
+                        columnChanges[inst].push(percentChange);
 
-                        tableHTML += `<td>${value || "-"}</td>`;
+                        tableHTML += `<td data-change="${percentChange}">${value || "-"}</td>`;
                         previousValues[inst] = value;
                     });
                     columnChanges["Total"].push(rowTotal);
                     tableHTML += `<td><strong>${rowTotal}</strong></td></tr>`;
                 });
-
-                // Append latest row from current_oi.json
-                let latestRowTotal = 0;
-                tableHTML += `<tr class="highlight"><td>Latest</td>`;
-                instruments.forEach(inst => {
-                    let latestOI = currentOIMap[product]?.[inst] || 0;
-                    let prevValue = previousValues[inst] || null;
-                    let change = prevValue !== null ? latestOI - prevValue : 0;
-                    columnChanges[inst].push(change);
-
-                    latestRowTotal += latestOI;
-                    tableHTML += `<td>${latestOI || "-"}</td>`;
-                });
-                columnChanges["Total"].push(latestRowTotal);
-                tableHTML += `<td><strong>${latestRowTotal}</strong></td></tr>`;
 
                 tableHTML += `</tbody></table>`;
                 container.innerHTML += tableHTML;
@@ -140,33 +138,48 @@
                     });
                 }, 100);
 
-                // Apply column-based relative coloring
-                applyColumnColoring(`#${tableId}`, [...instruments, "Total"], columnChanges);
+                applyPercentageColoring(`#${tableId}`, [...instruments, "Total"], columnChanges);
             });
         }
 
-        function applyColumnColoring(tableId, columns, columnChanges) {
+        function applyPercentageColoring(tableId, columns, columnChanges) {
             const rows = document.querySelectorAll(`${tableId} tbody tr`);
             columns.forEach((col, colIndex) => {
                 let changes = columnChanges[col];
+                let minChange = Math.min(...changes);
+                let maxChange = Math.max(...changes);
 
                 rows.forEach((row, rowIndex) => {
                     let cell = row.cells[colIndex + 1]; // +1 to skip Date column
                     let change = changes[rowIndex];
 
-                    cell.style.backgroundColor = getBucketColor(change);
+                    cell.style.backgroundColor = getGradientColor(change, minChange, maxChange);
+                    cell.addEventListener("mouseenter", showTooltip);
+                    cell.addEventListener("mouseleave", hideTooltip);
                 });
             });
         }
 
-        function getBucketColor(change) {
-            if (change > 100) return "#008000"; // Dark Green
-            if (change > 50) return "#66cc66";  // Medium Green
-            if (change > 0) return "#b3e6b3";   // Light Green
-            if (change === 0) return "#ffffff"; // White
-            if (change < -100) return "#800000"; // Dark Red
-            if (change < -50) return "#cc6666";  // Medium Red
-            if (change < 0) return "#e6b3b3";    // Light Red
+        function getGradientColor(value, min, max) {
+            if (value === 0) return "#ffffff"; // White for no change
+            let ratio = (value - min) / (max - min);
+            let red = Math.round(255 * (1 - ratio));
+            let green = Math.round(255 * ratio);
+            return `rgb(${red}, ${green}, 100)`; // Excel-style contrast
+        }
+
+        function showTooltip(event) {
+            const tooltip = document.getElementById("tooltip");
+            let percentChange = parseFloat(event.target.getAttribute("data-change"));
+            tooltip.innerText = `${percentChange.toFixed(2)}%`;
+            tooltip.style.color = percentChange >= 0 ? "green" : "red";
+            tooltip.style.left = event.pageX + 10 + "px";
+            tooltip.style.top = event.pageY + 10 + "px";
+            tooltip.style.display = "block";
+        }
+
+        function hideTooltip() {
+            document.getElementById("tooltip").style.display = "none";
         }
 
         fetchData();
