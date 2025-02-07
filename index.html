@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Read GitHub File with Fetch</title>
+</head>
+<body>
+    <h2>File Content:</h2>
+    <pre id="fileContent">Loading...</pre>
+
+    <script>
+        async function fetchFile() {
+            const url = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.txt?t=" + new Date().getTime();
+            
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("HTTP error " + response.status);
+                const text = await response.text();
+                document.getElementById("fileContent").textContent = text;
+            } catch (error) {
+                document.getElementById("fileContent").textContent = "Error loading file: " + error;
+            }
+        }
+
+        fetchFile();
+        setInterval(fetchFile, 6000); // Refresh every 60 seconds
+    </script>
+</body>
+</html>
