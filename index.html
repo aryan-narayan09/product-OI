@@ -97,24 +97,29 @@
 
                 let tableHTML = `<h3>${product}</h3><table id="${tableId}" class="display"><thead><tr><th>Date</th>`;
                 instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
-                tableHTML += `</tr></thead><tbody>`;
+                tableHTML += `<th>Total</th></tr></thead><tbody>`; // Add "Total" column
 
                 // Fill table rows using preserved date order
                 dates.forEach(date => {
+                    let rowTotal = 0;
                     tableHTML += `<tr><td>${date}</td>`;
                     instruments.forEach(inst => {
-                        tableHTML += `<td>${productData[date][inst] || "-"}</td>`;
+                        let value = productData[date][inst] || 0;
+                        rowTotal += value; // Calculate total
+                        tableHTML += `<td>${value || "-"}</td>`;
                     });
-                    tableHTML += `</tr>`;
+                    tableHTML += `<td><strong>${rowTotal}</strong></td></tr>`;
                 });
 
                 // Append last row from current_oi.json
+                let latestRowTotal = 0;
                 tableHTML += `<tr class="highlight"><td>Latest</td>`;
                 instruments.forEach(inst => {
-                    const latestOI = currentOIMap[product]?.[inst] || "-";
-                    tableHTML += `<td>${latestOI}</td>`;
+                    let latestOI = currentOIMap[product]?.[inst] || 0;
+                    latestRowTotal += latestOI; // Sum total for latest row
+                    tableHTML += `<td>${latestOI || "-"}</td>`;
                 });
-                tableHTML += `</tr>`;
+                tableHTML += `<td><strong>${latestRowTotal}</strong></td></tr>`;
 
                 tableHTML += `</tbody></table>`;
                 container.innerHTML += tableHTML;
