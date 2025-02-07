@@ -9,6 +9,7 @@
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
+        .table-container { width: 45%; float: left; padding: 10px; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
         th { background-color: #f4f4f4; }
@@ -82,7 +83,7 @@
                 const dates = dateOrder[product];
                 const tableId = `datatable-${index}`;
 
-                let tableHTML = `<h3>${product}</h3><table id="${tableId}" class="display"><thead><tr><th>Date</th>`;
+                let tableHTML = `<div class="table-container"><h3>${product}</h3><table id="${tableId}" class="display"><thead><tr><th>Date</th>`;
                 instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
                 tableHTML += `<th>Total</th></tr></thead><tbody>`;
 
@@ -126,7 +127,7 @@
                 columnChanges["Total"].push(latestRowTotal);
                 tableHTML += `<td><strong>${latestRowTotal}</strong></td></tr>`;
 
-                tableHTML += `</tbody></table>`;
+                tableHTML += `</tbody></table></div>`;
                 container.innerHTML += tableHTML;
 
                 setTimeout(() => {
@@ -141,11 +142,11 @@
                 }, 100);
 
                 // Apply color formatting
-                applyColumnColoring(`#${tableId}`, [...instruments, "Total"], columnChanges);
+                applyExcelStyleColoring(`#${tableId}`, [...instruments, "Total"], columnChanges);
             });
         }
 
-        function applyColumnColoring(tableId, columns, columnChanges) {
+        function applyExcelStyleColoring(tableId, columns, columnChanges) {
             const rows = document.querySelectorAll(`${tableId} tbody tr`);
             columns.forEach((col, colIndex) => {
                 let changes = columnChanges[col];
@@ -156,17 +157,17 @@
                     let cell = row.cells[colIndex + 1]; // +1 to skip Date column
                     let change = changes[rowIndex];
 
-                    cell.style.backgroundColor = getGradientColor(change, minChange, maxChange);
+                    cell.style.backgroundColor = getExcelGradientColor(change, minChange, maxChange);
                 });
             });
         }
 
-        function getGradientColor(value, min, max) {
-            if (value === 0) return "#ffffff"; // White for no change
+        function getExcelGradientColor(value, min, max) {
+            if (value === 0) return "#ffffcc"; // Yellow for no change
             let ratio = (value - min) / (max - min);
             let red = Math.round(255 * (1 - ratio));
             let green = Math.round(255 * ratio);
-            return `rgb(${red}, ${green}, 200)`; // Soft color contrast
+            return `rgb(${red}, ${green}, 100)`; // Excel-style contrast
         }
 
         fetchData();
