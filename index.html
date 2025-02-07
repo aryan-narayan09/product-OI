@@ -3,21 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Open Interest Tables</title>
+    <title>Open Interest Data</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <style>
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            margin-bottom: 20px;
-        }
-        th, td {
-            border: 1px solid black;
-            padding: 8px;
-            text-align: center;
-        }
-        th {
-            background-color: #f2f2f2;
-        }
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f4f4f4; }
     </style>
 </head>
 <body>
@@ -26,63 +20,6 @@
     <div id="tables-container"></div>
 
     <script>
-        
-        function generateTables(data) {
-            const container = document.getElementById("tables-container");
-            container.innerHTML = ""; // Clear previous tables
-        
-            const groupedData = {}; // Stores data grouped by product
-            const instrumentOrder = {}; // Stores instruments in original order for each product
-            const dateOrder = {}; // Stores dates in original order for each product
-        
-            // Process JSON while maintaining order
-            data.forEach(entry => {
-                const product = entry["Product"];
-                const date = entry["Date"];
-                const instrument = entry["Instrument"];
-                const openInterest = entry["Open Interest"];
-        
-                if (!groupedData[product]) {
-                    groupedData[product] = {};
-                    instrumentOrder[product] = [];
-                    dateOrder[product] = [];
-                }
-                if (!groupedData[product][date]) {
-                    groupedData[product][date] = {};
-                    dateOrder[product].push(date); // Preserve date order
-                }
-                if (!instrumentOrder[product].includes(instrument)) {
-                    instrumentOrder[product].push(instrument); // Preserve instrument order
-                }
-        
-                groupedData[product][date][instrument] = openInterest;
-            });
-        
-            // Generate tables
-            Object.keys(groupedData).forEach(product => {
-                const productData = groupedData[product];
-                const instruments = instrumentOrder[product]; // Use preserved order
-                const dates = dateOrder[product]; // Use preserved order
-        
-                let tableHTML = `<h3>${product}</h3><table><tr><th>Date</th>`;
-                instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
-                tableHTML += `</tr>`;
-        
-                // Fill table rows using preserved date order
-                dates.forEach(date => {
-                    tableHTML += `<tr><td>${date}</td>`;
-                    instruments.forEach(inst => {
-                        tableHTML += `<td>${productData[date][inst] || "-"}</td>`;
-                    });
-                    tableHTML += `</tr>`;
-                });
-        
-                tableHTML += `</table>`;
-                container.innerHTML += tableHTML;
-            });
-        }
-        
-        // Fetch JSON data and call generateTables()
         async function fetchData() {
             const url = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json"; // Update this
             try {
@@ -98,6 +35,72 @@
             }
         }
 
+        function generateTables(data) {
+            const container = document.getElementById("tables-container");
+            container.innerHTML = ""; // Clear previous tables
+
+            const groupedData = {};
+            const instrumentOrder = {};
+            const dateOrder = {};
+
+            // Process JSON while maintaining order
+            data.forEach(entry => {
+                const product = entry["Product"];
+                const date = entry["Date"];
+                const instrument = entry["Instrument"];
+                const openInterest = entry["Open Interest"];
+
+                if (!groupedData[product]) {
+                    groupedData[product] = {};
+                    instrumentOrder[product] = [];
+                    dateOrder[product] = [];
+                }
+                if (!groupedData[product][date]) {
+                    groupedData[product][date] = {};
+                    dateOrder[product].push(date); // Preserve date order
+                }
+                if (!instrumentOrder[product].includes(instrument)) {
+                    instrumentOrder[product].push(instrument); // Preserve instrument order
+                }
+
+                groupedData[product][date][instrument] = openInterest;
+            });
+
+            // Generate tables
+            Object.keys(groupedData).forEach((product, index) => {
+                const productData = groupedData[product];
+                const instruments = instrumentOrder[product]; // Use preserved order
+                const dates = dateOrder[product]; // Use preserved order
+                const tableId = `datatable-${index}`; // Unique ID for each table
+
+                let tableHTML = `<h3>${product}</h3><table id="${tableId}" class="display"><thead><tr><th>Date</th>`;
+                instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
+                tableHTML += `</tr></thead><tbody>`;
+
+                dates.forEach(date => {
+                    tableHTML += `<tr><td>${date}</td>`;
+                    instruments.forEach(inst => {
+                        tableHTML += `<td>${productData[date][inst] || "-"}</td>`;
+                    });
+                    tableHTML += `</tr>`;
+                });
+
+                tableHTML += `</tbody></table>`;
+                container.innerHTML += tableHTML;
+
+                // Initialize DataTables for this table after it's added to the DOM
+                setTimeout(() => {
+                    $(`#${tableId}`).DataTable({
+                        paging: false,   // Disable pagination
+                        searching: false, // Disable search
+                        ordering: false,  // Disable sorting (to preserve order)
+                        info: false,      // Hide info text
+                        autoWidth: false,
+                        responsive: true
+                    });
+                }, 100);
+            });
+        }
 
         fetchData();
     </script>
