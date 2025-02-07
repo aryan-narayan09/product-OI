@@ -14,6 +14,7 @@
         th { background-color: #f4f4f4; }
         .highlight { background-color: #ffefc1; font-weight: bold; }
         .toggle-btn { margin-bottom: 10px; cursor: pointer; padding: 5px 10px; border: 1px solid #ddd; background-color: #f4f4f4; }
+        .bold-row td { font-weight: bold; }
     </style>
 </head>
 <body>
@@ -80,7 +81,7 @@
                 const tableId = `datatable-${index}`;
                 const toggleId = `toggle-${index}`;
                 
-                let tableHTML = `<h3>${product} <button class='toggle-btn' id='${toggleId}'>% Change</button></h3><table id='${tableId}' class='display'><thead><tr><th>Date</th>`;
+                let tableHTML = `<h3>${product} <button class='toggle-btn' id='${toggleId}'>Toggle % Change</button></h3><table id='${tableId}' class='display'><thead><tr><th>Date</th>`;
                 instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
                 tableHTML += `<th>Total</th></tr></thead><tbody>`;
                 
@@ -120,10 +121,10 @@
                     let change = prevValue !== null ? ((latestOI - prevValue) / prevValue) * 100 : 0;
                     latestTotal += latestOI;
                     latestRow.push(latestOI || "-");
-                    percentageData[percentageData.length - 1].push(prevValue !== null ? `${change.toFixed(2)}%` : "-");
                 });
                 latestRow.push(`<strong>${latestTotal}</strong>`);
-                absoluteData.push(`<strong>${latestRow}</strong>`);
+                absoluteData.push(latestRow);
+                percentageData.push(latestRow);
                 
                 tableHTML += `</tbody></table>`;
                 container.innerHTML += tableHTML;
