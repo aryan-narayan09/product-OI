@@ -12,6 +12,7 @@
         table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background-color: #f4f4f4; }
+        .highlight { background-color: #ffefc1; font-weight: bold; } /* Highlight last row */
     </style>
 </head>
 <body>
@@ -21,30 +22,51 @@
 
     <script>
         async function fetchData() {
-            const url = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json"; // Update this
+            const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json"; // Update this
+            const currentUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/current_oi.json"; // Update this
+
             try {
-                console.log("Fetching:", url);
-                const response = await fetch(url);
-                if (!response.ok) throw new Error("HTTP error " + response.status);
-                const data = await response.json();
-                console.log("Fetched Data:", data);
-                generateTables(data);
+                console.log("Fetching:", mainUrl);
+                const mainResponse = await fetch(mainUrl);
+                if (!mainResponse.ok) throw new Error("HTTP error " + mainResponse.status);
+                const mainData = await mainResponse.json();
+
+                console.log("Fetching:", currentUrl);
+                const currentResponse = await fetch(currentUrl);
+                if (!currentResponse.ok) throw new Error("HTTP error " + currentResponse.status);
+                const currentData = await currentResponse.json();
+
+                console.log("Fetched Data:", mainData);
+                console.log("Fetched Current OI:", currentData);
+
+                generateTables(mainData, currentData);
             } catch (error) {
                 console.error("Fetch Error:", error);
                 document.getElementById("tables-container").innerHTML = "Error loading data: " + error;
             }
         }
 
-        function generateTables(data) {
+        function generateTables(mainData, currentData) {
             const container = document.getElementById("tables-container");
             container.innerHTML = ""; // Clear previous tables
 
             const groupedData = {};
             const instrumentOrder = {};
             const dateOrder = {};
+            const currentOIMap = {}; // Store latest OI data
 
-            // Process JSON while maintaining order
-            data.forEach(entry => {
+            // Process current_oi.json for quick lookup
+            currentData.forEach(entry => {
+                const product = entry["Product"];
+                const instrument = entry["Instrument"];
+                const openInterest = entry["Open Interest"];
+
+                if (!currentOIMap[product]) currentOIMap[product] = {};
+                currentOIMap[product][instrument] = openInterest;
+            });
+
+            // Process main JSON while maintaining order
+            mainData.forEach(entry => {
                 const product = entry["Product"];
                 const date = entry["Date"];
                 const instrument = entry["Instrument"];
@@ -77,6 +99,7 @@
                 instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
                 tableHTML += `</tr></thead><tbody>`;
 
+                // Fill table rows using preserved date order
                 dates.forEach(date => {
                     tableHTML += `<tr><td>${date}</td>`;
                     instruments.forEach(inst => {
@@ -84,6 +107,14 @@
                     });
                     tableHTML += `</tr>`;
                 });
+
+                // Append last row from current_oi.json
+                tableHTML += `<tr class="highlight"><td>Latest</td>`;
+                instruments.forEach(inst => {
+                    const latestOI = currentOIMap[product]?.[inst] || "-";
+                    tableHTML += `<td>${latestOI}</td>`;
+                });
+                tableHTML += `</tr>`;
 
                 tableHTML += `</tbody></table>`;
                 container.innerHTML += tableHTML;
