@@ -9,7 +9,6 @@
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        .table-container { width: 45%; float: left; padding: 10px; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
         th { background-color: #f4f4f4; }
@@ -83,12 +82,12 @@
                 const dates = dateOrder[product];
                 const tableId = `datatable-${index}`;
 
-                let tableHTML = `<div class="table-container"><h3>${product}</h3><table id="${tableId}" class="display"><thead><tr><th>Date</th>`;
+                let tableHTML = `<h3>${product}</h3><table id="${tableId}" class="display"><thead><tr><th>Date</th>`;
                 instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
                 tableHTML += `<th>Total</th></tr></thead><tbody>`;
 
                 let previousValues = {}; // Track previous day's OI for each instrument
-                let columnChanges = {}; // Store percentage changes
+                let columnChanges = {}; // Store daily changes for scaling
 
                 instruments.forEach(inst => columnChanges[inst] = []);
                 columnChanges["Total"] = [];
@@ -102,8 +101,8 @@
                         let prevValue = previousValues[inst] || null;
                         rowTotal += value;
 
-                        let percentChange = prevValue !== null ? ((value - prevValue) / prevValue) * 100 : 0;
-                        columnChanges[inst].push(percentChange);
+                        let change = prevValue !== null ? value - prevValue : 0;
+                        columnChanges[inst].push(change);
 
                         tableHTML += `<td>${value || "-"}</td>`;
                         previousValues[inst] = value;
@@ -118,8 +117,8 @@
                 instruments.forEach(inst => {
                     let latestOI = currentOIMap[product]?.[inst] || 0;
                     let prevValue = previousValues[inst] || null;
-                    let percentChange = prevValue !== null ? ((latestOI - prevValue) / prevValue) * 100 : 0;
-                    columnChanges[inst].push(percentChange);
+                    let change = prevValue !== null ? latestOI - prevValue : 0;
+                    columnChanges[inst].push(change);
 
                     latestRowTotal += latestOI;
                     tableHTML += `<td>${latestOI || "-"}</td>`;
@@ -127,7 +126,7 @@
                 columnChanges["Total"].push(latestRowTotal);
                 tableHTML += `<td><strong>${latestRowTotal}</strong></td></tr>`;
 
-                tableHTML += `</tbody></table></div>`;
+                tableHTML += `</tbody></table>`;
                 container.innerHTML += tableHTML;
 
                 setTimeout(() => {
@@ -141,33 +140,33 @@
                     });
                 }, 100);
 
-                // Apply color formatting
-                applyExcelStyleColoring(`#${tableId}`, [...instruments, "Total"], columnChanges);
+                // Apply column-based relative coloring
+                applyColumnColoring(`#${tableId}`, [...instruments, "Total"], columnChanges);
             });
         }
 
-        function applyExcelStyleColoring(tableId, columns, columnChanges) {
+        function applyColumnColoring(tableId, columns, columnChanges) {
             const rows = document.querySelectorAll(`${tableId} tbody tr`);
             columns.forEach((col, colIndex) => {
                 let changes = columnChanges[col];
-                let minChange = Math.min(...changes);
-                let maxChange = Math.max(...changes);
 
                 rows.forEach((row, rowIndex) => {
                     let cell = row.cells[colIndex + 1]; // +1 to skip Date column
                     let change = changes[rowIndex];
 
-                    cell.style.backgroundColor = getExcelGradientColor(change, minChange, maxChange);
+                    cell.style.backgroundColor = getBucketColor(change);
                 });
             });
         }
 
-        function getExcelGradientColor(value, min, max) {
-            if (value === 0) return "#ffffcc"; // Yellow for no change
-            let ratio = (value - min) / (max - min);
-            let red = Math.round(255 * (1 - ratio));
-            let green = Math.round(255 * ratio);
-            return `rgb(${red}, ${green}, 100)`; // Excel-style contrast
+        function getBucketColor(change) {
+            if (change > 100) return "#008000"; // Dark Green
+            if (change > 50) return "#66cc66";  // Medium Green
+            if (change > 0) return "#b3e6b3";   // Light Green
+            if (change === 0) return "#ffffff"; // White
+            if (change < -100) return "#800000"; // Dark Red
+            if (change < -50) return "#cc6666";  // Medium Red
+            if (change < 0) return "#e6b3b3";    // Light Red
         }
 
         fetchData();
