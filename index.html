@@ -160,13 +160,17 @@
         }
 
         function getBucketColor(change) {
-            if (change > 100) return "#008000"; // Dark Green
-            if (change > 50) return "#66cc66";  // Medium Green
-            if (change > 0) return "#b3e6b3";   // Light Green
+            if (change > 100) return "#76ff76"; // Dark Green
+            if (change > 75) return "##b1ffb1";
+            if (change > 50) return "#c4ffc4";  // Medium Green
+            if (change > 25) return "#c4ffc4";
+            if (change > 0) return "#ebffeb";   // Light Green
             if (change === 0) return "#ffffff"; // White
-            if (change < -100) return "#800000"; // Dark Red
-            if (change < -50) return "#cc6666";  // Medium Red
-            if (change < 0) return "#e6b3b3";    // Light Red
+            if (change < -100) return "#ff6262"; // Dark Red
+            if (change < -75) return "#ff8989";
+            if (change < -50) return "#ffb1b1";
+            if (change < -25) return "#ffc4c4";// Medium Red
+            if (change < 0) return "#ffebeb";    // Light Red
         }
 
         fetchData();
