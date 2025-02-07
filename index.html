@@ -116,17 +116,20 @@
                 let latestRowAbsolute = ["Latest"];
                 let latestRowPercentage = ["Latest"];
                 let latestTotal = 0;
+                let latestPrevTotal = 0;
                 
                 instruments.forEach(inst => {
                     let latestOI = currentOIMap[product]?.[inst] || 0;
                     let prevValue = previousValues[inst] || null;
                     let change = prevValue !== null ? ((latestOI - prevValue) / prevValue) * 100 : 0;
                     latestTotal += latestOI;
+                    latestPrevTotal += prevValue || 0;
                     latestRowAbsolute.push(`<strong>${latestOI}</strong>`);
                     latestRowPercentage.push(prevValue !== null ? `<strong>${change.toFixed(2)}%</strong>` : "-");
                 });
+                let latestTotalChange = latestPrevTotal !== 0 ? ((latestTotal - latestPrevTotal) / latestPrevTotal) * 100 : 0;
                 latestRowAbsolute.push(`<strong>${latestTotal}</strong>`);
-                latestRowPercentage.push(`<strong>${latestTotal}</strong>`);
+                latestRowPercentage.push(`<strong>${latestTotalChange.toFixed(2)}%</strong>`);
                 
                 absoluteData.push(latestRowAbsolute);
                 percentageData.push(latestRowPercentage);
