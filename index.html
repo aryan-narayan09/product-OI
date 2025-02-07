@@ -12,7 +12,7 @@
         table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
         th { background-color: #f4f4f4; }
-        .highlight { background-color: #ffefc1; font-weight: bold; } /* Highlight last row */
+        .highlight { background-color: #ffefc1; font-weight: bold; } /* Latest row */
     </style>
 </head>
 <body>
@@ -22,8 +22,8 @@
 
     <script>
         async function fetchData() {
-            const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json"; // Update this
-            const currentUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/current_oi.json"; // Update this
+            const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json"; // Update
+            const currentUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/current_oi.json"; // Update
 
             try {
                 const mainResponse = await fetch(mainUrl);
@@ -43,21 +43,21 @@
 
         function generateTables(mainData, currentData) {
             const container = document.getElementById("tables-container");
-            container.innerHTML = ""; // Clear previous tables
+            container.innerHTML = ""; // Clear old tables
 
             const groupedData = {};
             const instrumentOrder = {};
             const dateOrder = {};
             const currentOIMap = {};
 
-            // Process current_oi.json for quick lookup
+            // Process current_oi.json
             currentData.forEach(entry => {
                 const { Product, Instrument, "Open Interest": OpenInterest } = entry;
                 if (!currentOIMap[Product]) currentOIMap[Product] = {};
                 currentOIMap[Product][Instrument] = OpenInterest;
             });
 
-            // Process main JSON while maintaining order
+            // Process main JSON while preserving order
             mainData.forEach(entry => {
                 const { Product, Date, Instrument, "Open Interest": OpenInterest } = entry;
                 if (!groupedData[Product]) {
@@ -71,111 +71,4 @@
                 }
                 if (!instrumentOrder[Product].includes(Instrument)) {
                     instrumentOrder[Product].push(Instrument);
-                }
-                groupedData[Product][Date][Instrument] = OpenInterest;
-            });
-
-            // Generate tables
-            Object.keys(groupedData).forEach((product, index) => {
-                const productData = groupedData[product];
-                const instruments = instrumentOrder[product];
-                const dates = dateOrder[product];
-                const tableId = `datatable-${index}`;
-
-                let tableHTML = `<h3>${product}</h3><table id="${tableId}" class="display"><thead><tr><th>Date</th>`;
-                instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
-                tableHTML += `<th>Total</th></tr></thead><tbody>`;
-
-                let previousValues = {}; // Track previous day's OI for each instrument
-                let columnChanges = {}; // Store daily changes for scaling
-
-                // Initialize column tracking
-                instruments.forEach(inst => columnChanges[inst] = []);
-
-                // Fill table rows using preserved date order
-                dates.forEach(date => {
-                    let rowTotal = 0;
-                    tableHTML += `<tr><td>${date}</td>`;
-                    instruments.forEach(inst => {
-                        let value = productData[date][inst] || 0;
-                        let prevValue = previousValues[inst] || null;
-                        rowTotal += value;
-
-                        let change = prevValue !== null ? value - prevValue : 0;
-                        columnChanges[inst].push(change); // Store change for scaling
-
-                        tableHTML += `<td>${value || "-"}</td>`;
-                        previousValues[inst] = value; // Update for next iteration
-                    });
-                    tableHTML += `<td><strong>${rowTotal}</strong></td></tr>`;
-                });
-
-                // Append last row from current_oi.json
-                let latestRowTotal = 0;
-                tableHTML += `<tr class="highlight"><td>Latest</td>`;
-                instruments.forEach(inst => {
-                    let latestOI = currentOIMap[product]?.[inst] || 0;
-                    let prevValue = previousValues[inst] || null;
-                    let change = prevValue !== null ? latestOI - prevValue : 0;
-                    columnChanges[inst].push(change); // Store change for scaling
-
-                    latestRowTotal += latestOI;
-                    tableHTML += `<td>${latestOI || "-"}</td>`;
-                });
-                tableHTML += `<td><strong>${latestRowTotal}</strong></td></tr>`;
-
-                tableHTML += `</tbody></table>`;
-                container.innerHTML += tableHTML;
-
-                setTimeout(() => {
-                    $(`#${tableId}`).DataTable({
-                        paging: false,
-                        searching: false,
-                        ordering: false,
-                        info: false,
-                        autoWidth: false,
-                        responsive: true
-                    });
-                }, 100);
-
-                // Apply column-based relative coloring
-                applyColumnColoring(`#${tableId}`, instruments, columnChanges);
-            });
-        }
-
-        function applyColumnColoring(tableId, instruments, columnChanges) {
-            const rows = document.querySelectorAll(`${tableId} tbody tr`);
-            instruments.forEach((inst, colIndex) => {
-                let changes = columnChanges[inst];
-                let minChange = Math.min(...changes);
-                let maxChange = Math.max(...changes);
-
-                rows.forEach((row, rowIndex) => {
-                    let cell = row.cells[colIndex + 1]; // +1 to skip Date column
-                    let value = parseFloat(cell.textContent);
-                    let prevValue = rowIndex > 0 ? parseFloat(rows[rowIndex - 1].cells[colIndex + 1].textContent) : null;
-
-                    if (!isNaN(value) && !isNaN(prevValue)) {
-                        let change = value - prevValue;
-                        let color = getRelativeColor(change, minChange, maxChange);
-                        cell.style.backgroundColor = color;
-                    }
-                });
-            });
-        }
-
-        function getRelativeColor(change, min, max) {
-            if (min === max) return "#ffffff"; // No variation, no color
-
-            let percent = (change - min) / (max - min);
-            let red = Math.floor(255 - percent * 255);
-            let green = Math.floor(percent * 255);
-
-            return `rgb(${red}, ${green}, 200)`;
-        }
-
-        fetchData();
-    </script>
-
-</body>
-</html>
+          
