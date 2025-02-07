@@ -86,23 +86,35 @@
                 
                 let previousValues = {};
                 let columnChanges = {};
+                let absoluteData = [];
+                let percentageData = [];
                 instruments.forEach(inst => columnChanges[inst] = []);
                 columnChanges["Total"] = [];
                 
                 dates.forEach(date => {
                     let rowTotal = 0;
-                    tableHTML += `<tr><td>${date}</td>`;
+                    let rowAbsolute = [date];
+                    let rowPercentage = [date];
+                    
                     instruments.forEach(inst => {
                         let value = productData[date][inst] || 0;
                         let prevValue = previousValues[inst] || null;
                         let change = prevValue !== null ? ((value - prevValue) / prevValue) * 100 : 0;
                         columnChanges[inst].push(change);
                         rowTotal += value;
-                        tableHTML += `<td>${value || "-"}</td>`;
+                        rowAbsolute.push(value || "-");
+                        rowPercentage.push(prevValue !== null ? `${change.toFixed(2)}%` : "-");
                         previousValues[inst] = value;
                     });
-                    columnChanges["Total"].push(rowTotal);
-                    tableHTML += `<td><strong>${rowTotal}</strong></td></tr>`;
+                    
+                    let prevTotal = absoluteData.length > 0 ? absoluteData[absoluteData.length - 1].slice(1).reduce((a, b) => a + (parseFloat(b) || 0), 0) : null;
+                    let totalChange = prevTotal !== null ? ((rowTotal - prevTotal) / prevTotal) * 100 : 0;
+                    columnChanges["Total"].push(totalChange);
+                    rowAbsolute.push(`<strong>${rowTotal}</strong>`);
+                    rowPercentage.push(prevTotal !== null ? `<strong>${totalChange.toFixed(2)}%</strong>` : "-");
+                    
+                    absoluteData.push(rowAbsolute);
+                    percentageData.push(rowPercentage);
                 });
                 
                 tableHTML += `</tbody></table>`;
@@ -115,19 +127,15 @@
                         ordering: false,
                         info: false,
                         autoWidth: false,
-                        responsive: true
+                        responsive: true,
+                        data: absoluteData,
+                        columns: [{ title: "Date" }].concat(instruments.map(inst => ({ title: inst })), [{ title: "Total" }])
                     });
                     
+                    let isAbsolute = true;
                     document.getElementById(toggleId).addEventListener("click", () => {
-                        table.rows().every(function () {
-                            let rowData = this.data();
-                            rowData.forEach((val, i) => {
-                                if (i > 0) {
-                                    let change = columnChanges[instruments[i - 1]]?.[this.index()] || 0;
-                                    this.cell(this.index(), i).data(`${change.toFixed(2)}%`);
-                                }
-                            });
-                        });
+                        isAbsolute = !isAbsolute;
+                        table.clear().rows.add(isAbsolute ? absoluteData : percentageData).draw();
                     });
                 }, 100);
             });
