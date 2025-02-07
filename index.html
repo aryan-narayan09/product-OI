@@ -37,49 +37,52 @@
                 document.getElementById("tables-container").innerHTML = "Error loading data: " + error;
             }
         }
-
+        
         function generateTables(data) {
             const container = document.getElementById("tables-container");
             container.innerHTML = ""; // Clear previous tables
         
-            // Group data by Product
-            const groupedData = {};
+            const groupedData = {}; // Stores data grouped by product
+            const instrumentOrder = {}; // Stores instruments in original order for each product
+            const dateOrder = {}; // Stores dates in original order for each product
+        
+            // Process JSON while maintaining order
             data.forEach(entry => {
-                const product = entry["Product"];  // Correct capitalization
+                const product = entry["Product"];
                 const date = entry["Date"];
                 const instrument = entry["Instrument"];
                 const openInterest = entry["Open Interest"];
         
                 if (!groupedData[product]) {
                     groupedData[product] = {};
+                    instrumentOrder[product] = [];
+                    dateOrder[product] = [];
                 }
                 if (!groupedData[product][date]) {
                     groupedData[product][date] = {};
+                    dateOrder[product].push(date); // Preserve date order
                 }
+                if (!instrumentOrder[product].includes(instrument)) {
+                    instrumentOrder[product].push(instrument); // Preserve instrument order
+                }
+        
                 groupedData[product][date][instrument] = openInterest;
             });
         
-            // Create tables for each Product
+            // Generate tables
             Object.keys(groupedData).forEach(product => {
                 const productData = groupedData[product];
+                const instruments = instrumentOrder[product]; // Use preserved order
+                const dates = dateOrder[product]; // Use preserved order
         
-                // Get all unique instruments
-                const instruments = new Set();
-                Object.values(productData).forEach(row => {
-                    Object.keys(row).forEach(instrument => instruments.add(instrument));
-                });
-        
-                const instrumentList = Array.from(instruments).sort(); // Sort for consistency
-        
-                // Create table
                 let tableHTML = `<h3>${product}</h3><table><tr><th>Date</th>`;
-                instrumentList.forEach(inst => tableHTML += `<th>${inst}</th>`);
+                instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
                 tableHTML += `</tr>`;
         
-                // Fill table rows
-                Object.keys(productData).sort().forEach(date => {
+                // Fill table rows using preserved date order
+                dates.forEach(date => {
                     tableHTML += `<tr><td>${date}</td>`;
-                    instrumentList.forEach(inst => {
+                    instruments.forEach(inst => {
                         tableHTML += `<td>${productData[date][inst] || "-"}</td>`;
                     });
                     tableHTML += `</tr>`;
@@ -88,6 +91,22 @@
                 tableHTML += `</table>`;
                 container.innerHTML += tableHTML;
             });
+        }
+        
+        // Fetch JSON data and call generateTables()
+        async function fetchData() {
+            const url = "https://raw.githubusercontent.com/your-username/shared-text-files/main/data.json"; // Update this
+            try {
+                console.log("Fetching:", url);
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("HTTP error " + response.status);
+                const data = await response.json();
+                console.log("Fetched Data:", data);
+                generateTables(data);
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                document.getElementById("tables-container").innerHTML = "Error loading data: " + error;
+            }
         }
 
 
