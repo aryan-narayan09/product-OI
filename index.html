@@ -87,7 +87,7 @@
                 tableHTML += `<th>Total</th></tr></thead><tbody>`;
 
                 let previousValues = {}; // Track previous day's OI for each instrument
-                let columnChanges = {}; // Store daily changes for scaling
+                let columnChanges = {}; // Store percentage changes
 
                 instruments.forEach(inst => columnChanges[inst] = []);
                 columnChanges["Total"] = [];
@@ -101,8 +101,8 @@
                         let prevValue = previousValues[inst] || null;
                         rowTotal += value;
 
-                        let change = prevValue !== null ? value - prevValue : 0;
-                        columnChanges[inst].push(change);
+                        let percentChange = prevValue !== null ? ((value - prevValue) / prevValue) * 100 : 0;
+                        columnChanges[inst].push(percentChange);
 
                         tableHTML += `<td>${value || "-"}</td>`;
                         previousValues[inst] = value;
@@ -117,8 +117,8 @@
                 instruments.forEach(inst => {
                     let latestOI = currentOIMap[product]?.[inst] || 0;
                     let prevValue = previousValues[inst] || null;
-                    let change = prevValue !== null ? latestOI - prevValue : 0;
-                    columnChanges[inst].push(change);
+                    let percentChange = prevValue !== null ? ((latestOI - prevValue) / prevValue) * 100 : 0;
+                    columnChanges[inst].push(percentChange);
 
                     latestRowTotal += latestOI;
                     tableHTML += `<td>${latestOI || "-"}</td>`;
@@ -140,7 +140,7 @@
                     });
                 }, 100);
 
-                // Apply column-based relative coloring
+                // Apply color formatting
                 applyColumnColoring(`#${tableId}`, [...instruments, "Total"], columnChanges);
             });
         }
@@ -149,28 +149,24 @@
             const rows = document.querySelectorAll(`${tableId} tbody tr`);
             columns.forEach((col, colIndex) => {
                 let changes = columnChanges[col];
+                let minChange = Math.min(...changes);
+                let maxChange = Math.max(...changes);
 
                 rows.forEach((row, rowIndex) => {
                     let cell = row.cells[colIndex + 1]; // +1 to skip Date column
                     let change = changes[rowIndex];
 
-                    cell.style.backgroundColor = getBucketColor(change);
+                    cell.style.backgroundColor = getGradientColor(change, minChange, maxChange);
                 });
             });
         }
 
-        function getBucketColor(change) {
-            if (change > 100) return "#76ff76"; // Dark Green
-            if (change > 75) return "##b1ffb1";
-            if (change > 50) return "#c4ffc4";  // Medium Green
-            if (change > 25) return "#c4ffc4";
-            if (change > 0) return "#ebffeb";   // Light Green
-            if (change === 0) return "#ffffff"; // White
-            if (change < -100) return "#ff6262"; // Dark Red
-            if (change < -75) return "#ff8989";
-            if (change < -50) return "#ffb1b1";
-            if (change < -25) return "#ffc4c4";// Medium Red
-            if (change < 0) return "#ffebeb";    // Light Red
+        function getGradientColor(value, min, max) {
+            if (value === 0) return "#ffffff"; // White for no change
+            let ratio = (value - min) / (max - min);
+            let red = Math.round(255 * (1 - ratio));
+            let green = Math.round(255 * ratio);
+            return `rgb(${red}, ${green}, 200)`; // Soft color contrast
         }
 
         fetchData();
