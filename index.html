@@ -120,11 +120,11 @@
                     let prevValue = previousValues[inst] || null;
                     let change = prevValue !== null ? ((latestOI - prevValue) / prevValue) * 100 : 0;
                     latestTotal += latestOI;
-                    latestRow.push(latestOI || "-");
+                    latestRow.push(prevValue !== null ? `${change.toFixed(2)}%` : "-");
                 });
                 latestRow.push(`<strong>${latestTotal}</strong>`);
-                absoluteData.push(latestRow);
                 percentageData.push(latestRow);
+                absoluteData.push(latestRow.map(cell => `<strong>${cell}</strong>`));
                 
                 tableHTML += `</tbody></table>`;
                 container.innerHTML += tableHTML;
