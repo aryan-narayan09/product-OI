@@ -1,90 +1,100 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Open Interest Chart</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .chip-container { margin-bottom: 20px; }
-        .chip { display: inline-block; padding: 8px 12px; margin: 5px; border: 1px solid #ddd; background-color: #f4f4f4; cursor: pointer; border-radius: 16px; }
-        .chip.selected { background-color: #007bff; color: white; }
-        canvas { max-width: 100%; }
-    </style>
-</head>
-<body>
-    <h2>Open Interest Chart</h2>
-    <div class="chip-container" id="instrument-container"></div>
-    <canvas id="chart"></canvas>
+import { useState, useEffect } from "react";
+import { Line } from "react-chartjs-2";
+import { Chart, registerables } from "chart.js";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
-    <script>
-        async function fetchData() {
-            const url = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json";
-            try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error("HTTP error fetching data");
-                const data = await response.json();
-                processData(data);
-            } catch (error) {
-                console.error("Fetch Error:", error);
-            }
-        }
+Chart.register(...registerables);
 
-        function processData(data) {
-            const instrumentData = {};
-            const dates = new Set();
-            
-            data.forEach(({ Date, Instrument, "Open Interest": OI }) => {
-                if (!instrumentData[Instrument]) instrumentData[Instrument] = {};
-                instrumentData[Instrument][Date] = OI;
-                dates.add(Date);
-            });
+export default function ChartPage() {
+  const [data, setData] = useState(null);
+  const [selectedInstruments, setSelectedInstruments] = useState([]);
 
-            const sortedDates = [...dates].sort();
-            createInstrumentChips(instrumentData, sortedDates);
-        }
+  useEffect(() => {
+    fetch("https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json")
+      .then((res) => res.json())
+      .then(setData)
+      .catch(console.error);
+  }, []);
 
-        function createInstrumentChips(instrumentData, dates) {
-            const container = document.getElementById("instrument-container");
-            Object.keys(instrumentData).forEach(inst => {
-                const chip = document.createElement("div");
-                chip.className = "chip";
-                chip.innerText = inst;
-                chip.onclick = () => toggleInstrument(chip, inst, instrumentData, dates);
-                container.appendChild(chip);
-            });
-        }
+  if (!data) return <p>Loading data...</p>;
 
-        function toggleInstrument(chip, instrument, instrumentData, dates) {
-            chip.classList.toggle("selected");
-            updateChart(instrumentData, dates);
-        }
+  const groupedData = {};
+  data.forEach(({ Product, Date, Instrument, "Open Interest": OpenInterest }) => {
+    if (!groupedData[Product]) groupedData[Product] = {};
+    if (!groupedData[Product][Instrument]) groupedData[Product][Instrument] = [];
+    groupedData[Product][Instrument].push({ Date, OpenInterest });
+  });
 
-        function updateChart(instrumentData, dates) {
-            const selectedInstruments = [...document.querySelectorAll(".chip.selected")].map(chip => chip.innerText);
-            const datasets = selectedInstruments.map(inst => ({
-                label: inst,
-                data: dates.map(date => instrumentData[inst][date] || null),
-                borderColor: getRandomColor(),
-                fill: false
-            }));
-            chart.data = { labels: dates, datasets };
-            chart.update();
-        }
+  const toggleInstrument = (instrument) => {
+    setSelectedInstruments((prev) =>
+      prev.includes(instrument)
+        ? prev.filter((item) => item !== instrument)
+        : [...prev, instrument]
+    );
+  };
 
-        function getRandomColor() {
-            return `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)`;
-        }
+  const selectedData = [];
+  const colors = ["red", "blue", "green", "purple", "orange", "brown"];
+  let colorIndex = 0;
+  const productAxes = {};
 
-        let chart = new Chart(document.getElementById("chart"), {
-            type: "line",
-            data: { labels: [], datasets: [] },
-            options: { responsive: true, scales: { x: { title: { display: true, text: "Date" } }, y: { title: { display: true, text: "Open Interest" } } } }
+  Object.keys(groupedData).forEach((product, index) => {
+    Object.keys(groupedData[product]).forEach((instrument) => {
+      if (selectedInstruments.includes(instrument)) {
+        if (!productAxes[product]) productAxes[product] = `y-axis-${index}`;
+        selectedData.push({
+          label: instrument,
+          data: groupedData[product][instrument].map(({ Date, OpenInterest }) => ({ x: Date, y: OpenInterest })),
+          borderColor: colors[colorIndex % colors.length],
+          backgroundColor: colors[colorIndex % colors.length],
+          yAxisID: productAxes[product],
         });
+        colorIndex++;
+      }
+    });
+  });
 
-        fetchData();
-    </script>
-</body>
-</html>
+  const chartOptions = {
+    responsive: true,
+    scales: {
+      x: { type: "time", time: { unit: "day" } },
+      ...Object.keys(productAxes).reduce((acc, product) => {
+        acc[productAxes[product]] = { type: "linear", display: true, position: "left" };
+        return acc;
+      }, {}),
+    },
+  };
+
+  return (
+    <div className="p-4">
+      <h2 className="text-xl font-bold mb-4">Open Interest Chart</h2>
+      <ScrollArea className="max-h-64 border p-2 mb-4">
+        {Object.keys(groupedData).map((product) => (
+          <div key={product} className="mb-2">
+            <h3 className="font-semibold mb-1">{product}</h3>
+            <ToggleGroup type="multiple" className="flex flex-wrap gap-1">
+              {Object.keys(groupedData[product]).map((instrument) => (
+                <ToggleGroupItem
+                  key={instrument}
+                  value={instrument}
+                  onClick={() => toggleInstrument(instrument)}
+                  className={`px-2 py-1 border rounded ${selectedInstruments.includes(instrument) ? "bg-blue-500 text-white" : "bg-gray-200"}`}
+                >
+                  {instrument}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+          </div>
+        ))}
+      </ScrollArea>
+      <Card>
+        <CardContent>
+          <Line data={{ datasets: selectedData }} options={chartOptions} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
