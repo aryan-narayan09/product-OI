@@ -24,6 +24,7 @@
     
     <script>
         async function fetchData() {
+            const scrollPosition = window.scrollY; // Save current scroll position
             const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json";
 
             try {
@@ -35,6 +36,7 @@
                 console.error("Fetch Error:", error);
                 document.getElementById("tables-container").innerHTML = "Error loading data: " + error;
             }
+            window.scrollTo(0, scrollPosition); // Restore scroll position
         }
 
         function generateTables(mainData) {
