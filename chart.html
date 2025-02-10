@@ -16,7 +16,7 @@
 </head>
 <body>
     <h2>Open Interest Chart</h2>
-    <div class="chip-container" id="instrument-container"></div>
+    <div id="instrument-container"></div>
     <canvas id="chart"></canvas>
 
     <script>
@@ -64,13 +64,30 @@
 
         function updateChart(instrumentData, dates) {
             const selectedInstruments = [...document.querySelectorAll(".chip.selected")].map(chip => chip.innerText);
-            const datasets = selectedInstruments.map(inst => ({
-                label: inst,
-                data: dates.map(date => instrumentData[inst][date] || null),
-                borderColor: getRandomColor(),
-                fill: false
-            }));
+            const datasets = [];
+            const yAxes = {};
+            let axisIndex = 0;
+            
+            selectedInstruments.forEach(inst => {
+                const axisID = `y-axis-${axisIndex}`;
+                yAxes[axisID] = {
+                    type: "linear",
+                    display: true,
+                    position: axisIndex % 2 === 0 ? "left" : "right",
+                    grid: { drawOnChartArea: axisIndex === 0 }
+                };
+                datasets.push({
+                    label: inst,
+                    data: dates.map(date => instrumentData[inst][date] || null),
+                    borderColor: getRandomColor(),
+                    fill: false,
+                    yAxisID: axisID
+                });
+                axisIndex++;
+            });
+
             chart.data = { labels: dates, datasets };
+            chart.options.scales = { x: { title: { display: true, text: "Date" } }, ...yAxes };
             chart.update();
         }
 
@@ -81,7 +98,7 @@
         let chart = new Chart(document.getElementById("chart"), {
             type: "line",
             data: { labels: [], datasets: [] },
-            options: { responsive: true, scales: { x: { title: { display: true, text: "Date" } }, y: { title: { display: true, text: "Open Interest" } } } }
+            options: { responsive: true, scales: { x: { title: { display: true, text: "Date" } } } }
         });
 
         fetchData();
