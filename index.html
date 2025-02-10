@@ -10,15 +10,15 @@
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { display: flex; flex-wrap: wrap; }
+        .container { display: flex; flex-wrap: wrap; align-items: flex-start; }
         .table-container, .chart-container { width: 50%; box-sizing: border-box; padding: 10px; }
         .table-container { overflow-y: auto; max-height: 90vh; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+        th, td { border: 1px solid #ddd; padding: 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         th { background-color: #f4f4f4; }
         .toggle-btn { margin-bottom: 10px; cursor: pointer; padding: 5px 10px; border: 1px solid #ddd; background-color: #f4f4f4; }
-        .chart-container { display: flex; justify-content: center; align-items: center; }
-        canvas { width: 100% !important; height: auto !important; }
+        .chart-container { display: flex; justify-content: center; align-items: center; height: auto; }
+        canvas { width: 100% !important; height: auto !important; max-height: 90vh; }
     </style>
 </head>
 <body>
@@ -55,26 +55,41 @@
                 const productData = groupedData[product];
                 const tableId = `datatable-${index}`;
                 const chartId = `chart-${index}`;
+                const toggleId = `toggle-${index}`;
                 
                 let html = `<div class='container'>
                     <div class='table-container'>
-                        <h3>${product}</h3>
+                        <h3>${product} <button class='toggle-btn' id='${toggleId}'>Toggle % Change</button></h3>
                         <table id='${tableId}' class='display'>
                             <thead><tr><th>Date</th>`;
                 
                 let instruments = Object.keys(productData);
                 instruments.forEach(inst => html += `<th class='instrument-column' data-product='${product}' data-instrument='${inst}'>${inst}</th>`);
-                html += `</tr></thead><tbody>`;
+                html += `<th>Total</th></tr></thead><tbody>`;
                 
                 let dates = [...new Set(Object.values(productData).flat().map(entry => entry.date))].sort();
+                let totalRow = [];
+                
                 dates.forEach(date => {
                     html += `<tr><td>${date}</td>`;
+                    let total = 0;
                     instruments.forEach(inst => {
-                        let value = productData[inst].find(entry => entry.date === date)?.openInterest || "-";
+                        let value = productData[inst].find(entry => entry.date === date)?.openInterest || 0;
+                        total += value;
                         html += `<td>${value}</td>`;
                     });
-                    html += `</tr>`;
+                    html += `<td><strong>${total}</strong></td></tr>`;
+                    totalRow.push(total);
                 });
+                
+                html += `<tr><td><strong>Latest</strong></td>`;
+                let latestTotal = 0;
+                instruments.forEach(inst => {
+                    let latestValue = productData[inst][productData[inst].length - 1]?.openInterest || 0;
+                    latestTotal += latestValue;
+                    html += `<td><strong>${latestValue}</strong></td>`;
+                });
+                html += `<td><strong>${latestTotal}</strong></td></tr>`;
                 
                 html += `</tbody></table></div>
                     <div class='chart-container'><canvas id='${chartId}'></canvas></div>
