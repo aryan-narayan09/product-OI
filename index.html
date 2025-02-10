@@ -5,147 +5,175 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Open Interest Data</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { display: flex; align-items: flex-start; gap: 20px; }
-        .table-container, .chart-container { width: 50%; box-sizing: border-box; padding: 10px; }
-        .table-container { overflow-y: auto; max-height: 90vh; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: auto; }
-        th, td { border: 1px solid #ddd; padding: 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
         th { background-color: #f4f4f4; }
+        .highlight { background-color: #ffefc1; font-weight: bold; }
         .toggle-btn { margin-bottom: 10px; cursor: pointer; padding: 5px 10px; border: 1px solid #ddd; background-color: #f4f4f4; }
-        .chart-container { display: flex; justify-content: center; align-items: center; height: auto; }
-        canvas { width: 100% !important; height: auto !important; max-height: 90vh; }
+        .bold-row td { font-weight: bold; background-color: #f4f4f4; }
     </style>
 </head>
 <body>
     <h2>Open Interest Data</h2>
-    <div id="content"></div>
+    <div id="tables-container"></div>
     
     <script>
         async function fetchData() {
             const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json";
+            const currentUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/current_oi.json";
+
             try {
-                const response = await fetch(mainUrl);
-                if (!response.ok) throw new Error("HTTP error " + response.status);
-                const mainData = await response.json();
-                generateTables(mainData);
+                const [mainResponse, currentResponse] = await Promise.all([
+                    fetch(mainUrl),
+                    fetch(currentUrl)
+                ]);
+
+                if (!mainResponse.ok || !currentResponse.ok) 
+                    throw new Error("HTTP error fetching data");
+
+                const mainData = await mainResponse.json();
+                const currentData = await currentResponse.json();
+                
+                generateTables(mainData, currentData);
             } catch (error) {
                 console.error("Fetch Error:", error);
-                document.getElementById("content").innerHTML = "Error loading data: " + error;
+                document.getElementById("tables-container").innerHTML = "Error loading data: " + error;
             }
         }
 
-        function generateTables(mainData) {
-            const container = document.getElementById("content");
+        function generateTables(mainData, currentData) {
+            const container = document.getElementById("tables-container");
             container.innerHTML = "";
-            const groupedData = {};
             
+            const groupedData = {};
+            const instrumentOrder = {};
+            const dateOrder = {};
+            const currentOIMap = {};
+
+            currentData.forEach(entry => {
+                const { Product, Instrument, "Open Interest": OpenInterest } = entry;
+                if (!currentOIMap[Product]) currentOIMap[Product] = {};
+                currentOIMap[Product][Instrument] = OpenInterest;
+            });
+
             mainData.forEach(entry => {
                 const { Product, Date, Instrument, "Open Interest": OpenInterest } = entry;
-                if (!groupedData[Product]) groupedData[Product] = {};
-                if (!groupedData[Product][Instrument]) groupedData[Product][Instrument] = [];
-                groupedData[Product][Instrument].push({ date: Date, openInterest: OpenInterest });
+                if (!groupedData[Product]) {
+                    groupedData[Product] = {};
+                    instrumentOrder[Product] = [];
+                    dateOrder[Product] = [];
+                }
+                if (!groupedData[Product][Date]) {
+                    groupedData[Product][Date] = {};
+                    dateOrder[Product].push(Date);
+                }
+                if (!instrumentOrder[Product].includes(Instrument)) {
+                    instrumentOrder[Product].push(Instrument);
+                }
+                groupedData[Product][Date][Instrument] = OpenInterest;
             });
+
+            const fragment = document.createDocumentFragment();
 
             Object.keys(groupedData).forEach((product, index) => {
                 const productData = groupedData[product];
+                const instruments = instrumentOrder[product];
+                const dates = dateOrder[product];
                 const tableId = `datatable-${index}`;
-                const chartId = `chart-${index}`;
                 const toggleId = `toggle-${index}`;
                 
-                let html = `<div class='container'>
-                    <div class='table-container'>
-                        <h3>${product} <button class='toggle-btn' id='${toggleId}'>Toggle % Change</button></h3>
-                        <table id='${tableId}' class='display'>
-                            <thead><tr><th>Date</th>`;
-                
-                let instruments = Object.keys(productData);
-                instruments.forEach(inst => html += `<th class='instrument-column' data-product='${product}' data-instrument='${inst}'>${inst}</th>`);
-                html += `<th>Total</th></tr></thead><tbody>`;
-                
-                let dates = Object.values(productData).flat().map(entry => entry.date);
-                dates = [...new Set(dates)];
-                let totalRow = [];
-                
+                let tableHTML = `<h3>${product} <button class='toggle-btn' id='${toggleId}'>Toggle % Change</button></h3>
+                                <table id='${tableId}' class='display'>
+                                <thead><tr><th>Date</th>`;
+                instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
+                tableHTML += `<th>Total</th></tr></thead><tbody>`;
+
+                let previousValues = {};
+                let absoluteData = [];
+                let percentageData = [];
+
                 dates.forEach(date => {
-                    html += `<tr><td>${date}</td>`;
-                    let total = 0;
+                    let rowTotal = 0;
+                    let rowAbsolute = [date];
+                    let rowPercentage = [date];
+
                     instruments.forEach(inst => {
-                        let value = productData[inst].find(entry => entry.date === date)?.openInterest || 0;
-                        total += value;
-                        html += `<td>${value}</td>`;
+                        let value = productData[date][inst] || 0;
+                        let prevValue = previousValues[inst] || null;
+                        let change = prevValue !== null ? ((value - prevValue) / prevValue) * 100 : 0;
+                        rowTotal += value;
+                        rowAbsolute.push(value || "-");
+                        rowPercentage.push(prevValue !== null ? `${change.toFixed(2)}%` : "-");
+                        previousValues[inst] = value;
                     });
-                    html += `<td><strong>${total}</strong></td></tr>`;
-                    totalRow.push(total);
+
+                    let prevTotal = absoluteData.length > 0 
+                        ? absoluteData[absoluteData.length - 1].slice(1).reduce((a, b) => a + (parseFloat(b) || 0), 0) 
+                        : null;
+                    let totalChange = prevTotal > 0 ? ((rowTotal - prevTotal) / prevTotal) * 100 : 0;
+                    rowAbsolute.push(`<strong>${rowTotal}</strong>`);
+                    rowPercentage.push(prevTotal !== null ? `<strong>${totalChange.toFixed(2)}%</strong>` : "-");
+
+                    absoluteData.push(rowAbsolute);
+                    percentageData.push(rowPercentage);
                 });
-                
-                html += `<tr><td><strong>Latest</strong></td>`;
+
+                let latestRowAbsolute = ["Latest"];
+                let latestRowPercentage = ["Latest"];
                 let latestTotal = 0;
+                let latestPrevTotal = 0;
+
                 instruments.forEach(inst => {
-                    let latestValue = productData[inst][productData[inst].length - 1]?.openInterest || 0;
-                    latestTotal += latestValue;
-                    html += `<td><strong>${latestValue}</strong></td>`;
+                    let latestOI = currentOIMap[product]?.[inst] || 0;
+                    let prevValue = previousValues[inst] || null;
+                    let change = prevValue !== null ? ((latestOI - prevValue) / prevValue) * 100 : 0;
+                    latestTotal += latestOI;
+                    latestPrevTotal += prevValue || 0;
+                    latestRowAbsolute.push(`<strong>${latestOI}</strong>`);
+                    latestRowPercentage.push(prevValue !== null ? `<strong>${change.toFixed(2)}%</strong>` : "-");
                 });
-                html += `<td><strong>${latestTotal}</strong></td></tr>`;
+
+                let latestTotalChange = latestPrevTotal > 0 ? ((latestTotal - latestPrevTotal) / latestPrevTotal) * 100 : 0;
+                latestRowAbsolute.push(`<strong>${latestTotal}</strong>`);
+                latestRowPercentage.push(`<strong>${latestTotalChange.toFixed(2)}%</strong>`);
+
+                absoluteData.push(latestRowAbsolute);
+                percentageData.push(latestRowPercentage);
+
+                tableHTML += `</tbody></table>`;
                 
-                html += `</tbody></table></div>
-                    <div class='chart-container'><canvas id='${chartId}'></canvas></div>
-                </div>`;
-                
-                container.innerHTML += html;
+                let tableDiv = document.createElement("div");
+                tableDiv.innerHTML = tableHTML;
+                fragment.appendChild(tableDiv);
 
                 setTimeout(() => {
-                    $(`#${tableId}`).DataTable({
+                    const table = $(`#${tableId}`).DataTable({
                         paging: false,
                         searching: false,
                         ordering: false,
                         info: false,
-                        autoWidth: true,
+                        autoWidth: false,
                         responsive: true,
+                        data: absoluteData,
+                        createdRow: function(row, data, index) {
+                            if (data[0] === "Latest") $(row).addClass("bold-row");
+                        }
+                    });
+                    let isAbsolute = true;
+                    document.getElementById(toggleId).addEventListener("click", () => {
+                        isAbsolute = !isAbsolute;
+                        table.clear().rows.add(isAbsolute ? absoluteData : percentageData).draw();
                     });
                 }, 100);
-
-                document.querySelectorAll(`[data-product='${product}']`).forEach(el => {
-                    el.addEventListener("click", () => {
-                        const instrument = el.getAttribute("data-instrument");
-                        updateChart(chartId, productData[instrument], instrument);
-                    });
-                });
             });
+
+            container.appendChild(fragment);
         }
 
-        function updateChart(chartId, data, instrument) {
-            const ctx = document.getElementById(chartId).getContext("2d");
-            if (window[chartId]) window[chartId].destroy();
-            window[chartId] = new Chart(ctx, {
-                type: "line",
-                data: {
-                    labels: data.map(entry => entry.date),
-                    datasets: [{
-                        label: `Open Interest - ${instrument}`,
-                        data: data.map(entry => entry.openInterest),
-                        borderColor: "#007bff",
-                        backgroundColor: "rgba(0, 123, 255, 0.1)",
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.1,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: { title: { display: true, text: "Date" } },
-                        y: { title: { display: true, text: "Open Interest" } }
-                    }
-                }
-            });
-        }
-        
         fetchData();
     </script>
 </body>
