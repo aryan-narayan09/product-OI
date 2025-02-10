@@ -10,10 +10,10 @@
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { display: flex; flex-wrap: wrap; align-items: flex-start; }
+        .container { display: flex; align-items: flex-start; gap: 20px; }
         .table-container, .chart-container { width: 50%; box-sizing: border-box; padding: 10px; }
         .table-container { overflow-y: auto; max-height: 90vh; }
-        table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: auto; }
         th, td { border: 1px solid #ddd; padding: 6px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         th { background-color: #f4f4f4; }
         .toggle-btn { margin-bottom: 10px; cursor: pointer; padding: 5px 10px; border: 1px solid #ddd; background-color: #f4f4f4; }
@@ -67,7 +67,8 @@
                 instruments.forEach(inst => html += `<th class='instrument-column' data-product='${product}' data-instrument='${inst}'>${inst}</th>`);
                 html += `<th>Total</th></tr></thead><tbody>`;
                 
-                let dates = [...new Set(Object.values(productData).flat().map(entry => entry.date))].sort();
+                let dates = Object.values(productData).flat().map(entry => entry.date);
+                dates = [...new Set(dates)];
                 let totalRow = [];
                 
                 dates.forEach(date => {
@@ -103,7 +104,7 @@
                         searching: false,
                         ordering: false,
                         info: false,
-                        autoWidth: false,
+                        autoWidth: true,
                         responsive: true,
                     });
                 }, 100);
