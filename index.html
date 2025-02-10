@@ -23,15 +23,6 @@
     <div id="tables-container"></div>
     
     <script>
-
-        document.addEventListener("DOMContentLoaded", function(event) { 
-            var scrollpos = localStorage.getItem('scrollpos');
-            if (scrollpos) window.scrollTo(0, scrollpos);
-        });
-
-        window.onbeforeunload = function(e) {
-            localStorage.setItem('scrollpos', window.scrollY);
-        };
         
         async function fetchData() {
             const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json";
@@ -40,38 +31,54 @@
                 const response = await fetch(mainUrl);
                 if (!response.ok) throw new Error("HTTP error fetching data");
                 const mainData = await response.json();
-                generateTables(mainData);
+                updateTables(data);
             } catch (error) {
                 console.error("Fetch Error:", error);
                 document.getElementById("tables-container").innerHTML = "Error loading data: " + error;
             }
         }
 
-        function generateTables(mainData) {
-            const container = document.getElementById("tables-container");
-            container.innerHTML = "";
-            
-            const groupedData = {};
-            const instrumentOrder = {};
-            const dateOrder = {};
-
-            mainData.forEach(entry => {
-                const { Product, Date, Instrument, "Open Interest": OpenInterest } = entry;
-                if (!groupedData[Product]) {
-                    groupedData[Product] = {};
-                    instrumentOrder[Product] = [];
-                    dateOrder[Product] = [];
+        function updateTables(data) {
+            const tableContainer = document.getElementById("table-container"); // Ensure a div wraps tables
+        
+            data.forEach(({ Instrument, Date, "Open Interest": OI }) => {
+                if (!Instrument || !Date || OI === undefined) return;
+        
+                let table = document.querySelector(`#table-${Instrument}`);
+        
+                // If table doesn't exist, create it
+                if (!table) {
+                    table = document.createElement("table");
+                    table.id = `table-${Instrument}`;
+                    table.innerHTML = `
+                        <thead><tr><th>Date</th><th>Open Interest</th></tr></thead>
+                        <tbody></tbody>
+                    `;
+                    tableContainer.appendChild(table);
                 }
-                if (!groupedData[Product][Date]) {
-                    groupedData[Product][Date] = {};
-                    dateOrder[Product].push(Date);
+        
+                const tbody = table.querySelector("tbody");
+        
+                // If it's a new date, add a new row
+                let row = Array.from(tbody.querySelectorAll("tr")).find(tr => tr.dataset.date === Date);
+                if (!row) {
+                    row = document.createElement("tr");
+                    row.dataset.date = Date;
+                    row.innerHTML = `<td>${Date}</td><td class="oi-cell">${OI}</td>`;
+                    tbody.appendChild(row);
+                } else {
+                    // Update existing row only for "Current"
+                    if (Date === "Current") {
+                        row.querySelector(".oi-cell").textContent = OI;
+                    }
                 }
-                if (!instrumentOrder[Product].includes(Instrument)) {
-                    instrumentOrder[Product].push(Instrument);
-                }
-                groupedData[Product][Date][Instrument] = OpenInterest;
             });
+        }
+        
+        // Ensure the container for tables exists
+        document.body.insertAdjacentHTML("beforeend", `<div id="table-container"></div>`);
 
+        
             const fragment = document.createDocumentFragment();
 
             Object.keys(groupedData).forEach((product, index) => {
