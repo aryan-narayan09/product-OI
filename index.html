@@ -14,7 +14,7 @@
         th { background-color: #f4f4f4; }
         .highlight { background-color: #ffefc1; font-weight: bold; }
         .toggle-btn { margin-bottom: 10px; cursor: pointer; padding: 5px 10px; border: 1px solid #ddd; background-color: #f4f4f4; }
-        .bold-row td { font-weight: bold; }
+        .bold-row td { font-weight: bold; background-color: #f4f4f4; }
     </style>
 </head>
 <body>
@@ -27,14 +27,17 @@
             const currentUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/current_oi.json";
 
             try {
-                const mainResponse = await fetch(mainUrl);
-                if (!mainResponse.ok) throw new Error("HTTP error " + mainResponse.status);
+                const [mainResponse, currentResponse] = await Promise.all([
+                    fetch(mainUrl),
+                    fetch(currentUrl)
+                ]);
+
+                if (!mainResponse.ok || !currentResponse.ok) 
+                    throw new Error("HTTP error fetching data");
+
                 const mainData = await mainResponse.json();
-
-                const currentResponse = await fetch(currentUrl);
-                if (!currentResponse.ok) throw new Error("HTTP error " + currentResponse.status);
                 const currentData = await currentResponse.json();
-
+                
                 generateTables(mainData, currentData);
             } catch (error) {
                 console.error("Fetch Error:", error);
@@ -74,6 +77,8 @@
                 groupedData[Product][Date][Instrument] = OpenInterest;
             });
 
+            const fragment = document.createDocumentFragment();
+
             Object.keys(groupedData).forEach((product, index) => {
                 const productData = groupedData[product];
                 const instruments = instrumentOrder[product];
@@ -81,19 +86,21 @@
                 const tableId = `datatable-${index}`;
                 const toggleId = `toggle-${index}`;
                 
-                let tableHTML = `<h3>${product} <button class='toggle-btn' id='${toggleId}'>Toggle % Change</button></h3><table id='${tableId}' class='display'><thead><tr><th>Date</th>`;
+                let tableHTML = `<h3>${product} <button class='toggle-btn' id='${toggleId}'>Toggle % Change</button></h3>
+                                <table id='${tableId}' class='display'>
+                                <thead><tr><th>Date</th>`;
                 instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
                 tableHTML += `<th>Total</th></tr></thead><tbody>`;
-                
+
                 let previousValues = {};
                 let absoluteData = [];
                 let percentageData = [];
-                
+
                 dates.forEach(date => {
                     let rowTotal = 0;
                     let rowAbsolute = [date];
                     let rowPercentage = [date];
-                    
+
                     instruments.forEach(inst => {
                         let value = productData[date][inst] || 0;
                         let prevValue = previousValues[inst] || null;
@@ -103,12 +110,14 @@
                         rowPercentage.push(prevValue !== null ? `${change.toFixed(2)}%` : "-");
                         previousValues[inst] = value;
                     });
-                    
-                    let prevTotal = absoluteData.length > 0 ? absoluteData[absoluteData.length - 1].slice(1).reduce((a, b) => a + (parseFloat(b) || 0), 0) : null;
-                    let totalChange = prevTotal !== null ? ((rowTotal - prevTotal) / prevTotal) * 100 : 0;
+
+                    let prevTotal = absoluteData.length > 0 
+                        ? absoluteData[absoluteData.length - 1].slice(1).reduce((a, b) => a + (parseFloat(b) || 0), 0) 
+                        : null;
+                    let totalChange = prevTotal > 0 ? ((rowTotal - prevTotal) / prevTotal) * 100 : 0;
                     rowAbsolute.push(`<strong>${rowTotal}</strong>`);
                     rowPercentage.push(prevTotal !== null ? `<strong>${totalChange.toFixed(2)}%</strong>` : "-");
-                    
+
                     absoluteData.push(rowAbsolute);
                     percentageData.push(rowPercentage);
                 });
@@ -117,7 +126,7 @@
                 let latestRowPercentage = ["Latest"];
                 let latestTotal = 0;
                 let latestPrevTotal = 0;
-                
+
                 instruments.forEach(inst => {
                     let latestOI = currentOIMap[product]?.[inst] || 0;
                     let prevValue = previousValues[inst] || null;
@@ -127,16 +136,20 @@
                     latestRowAbsolute.push(`<strong>${latestOI}</strong>`);
                     latestRowPercentage.push(prevValue !== null ? `<strong>${change.toFixed(2)}%</strong>` : "-");
                 });
-                let latestTotalChange = latestPrevTotal !== 0 ? ((latestTotal - latestPrevTotal) / latestPrevTotal) * 100 : 0;
+
+                let latestTotalChange = latestPrevTotal > 0 ? ((latestTotal - latestPrevTotal) / latestPrevTotal) * 100 : 0;
                 latestRowAbsolute.push(`<strong>${latestTotal}</strong>`);
                 latestRowPercentage.push(`<strong>${latestTotalChange.toFixed(2)}%</strong>`);
-                
+
                 absoluteData.push(latestRowAbsolute);
                 percentageData.push(latestRowPercentage);
-                
+
                 tableHTML += `</tbody></table>`;
-                container.innerHTML += tableHTML;
                 
+                let tableDiv = document.createElement("div");
+                tableDiv.innerHTML = tableHTML;
+                fragment.appendChild(tableDiv);
+
                 setTimeout(() => {
                     const table = $(`#${tableId}`).DataTable({
                         paging: false,
@@ -146,6 +159,9 @@
                         autoWidth: false,
                         responsive: true,
                         data: absoluteData,
+                        createdRow: function(row, data, index) {
+                            if (data[0] === "Latest") $(row).addClass("bold-row");
+                        }
                     });
                     let isAbsolute = true;
                     document.getElementById(toggleId).addEventListener("click", () => {
@@ -154,8 +170,10 @@
                     });
                 }, 100);
             });
+
+            container.appendChild(fragment);
         }
-        
+
         fetchData();
     </script>
 </body>
