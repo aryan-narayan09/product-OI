@@ -34,7 +34,7 @@
 
         function processData(data) {
             const instrumentData = {};
-            const dates = [];
+            let dates = [];
             
             data.forEach(({ Date, Instrument, "Open Interest": OI }) => {
                 if (!instrumentData[Instrument]) instrumentData[Instrument] = {};
@@ -42,11 +42,15 @@
                 if (!dates.includes(Date)) dates.push(Date);
             });
 
+            // Ensure "current" is always the last entry
+            dates = dates.filter(date => date !== "current").concat("current");
+            
             createInstrumentChips(instrumentData, dates);
         }
 
         function createInstrumentChips(instrumentData, dates) {
             const container = document.getElementById("instrument-container");
+            container.innerHTML = "";
             Object.keys(instrumentData).forEach(inst => {
                 const chip = document.createElement("div");
                 chip.className = "chip";
@@ -101,6 +105,7 @@
         });
 
         fetchData();
+        setInterval(fetchData, 120000); // Refresh data every 2 minutes
     </script>
 </body>
 </html>
