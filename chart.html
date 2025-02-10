@@ -34,16 +34,15 @@
 
         function processData(data) {
             const instrumentData = {};
-            const dates = new Set();
+            const dates = [];
             
             data.forEach(({ Date, Instrument, "Open Interest": OI }) => {
                 if (!instrumentData[Instrument]) instrumentData[Instrument] = {};
                 instrumentData[Instrument][Date] = OI;
-                dates.add(Date);
+                if (!dates.includes(Date)) dates.push(Date);
             });
 
-            const sortedDates = [...dates].sort((a, b) => new Date(a) - new Date(b));
-            createInstrumentChips(instrumentData, sortedDates);
+            createInstrumentChips(instrumentData, dates);
         }
 
         function createInstrumentChips(instrumentData, dates) {
