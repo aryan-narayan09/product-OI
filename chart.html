@@ -34,17 +34,15 @@
 
         function processData(data) {
             const instrumentData = {};
-            let dates = [];
+            const dates = [];
             
             data.forEach(({ Date, Instrument, "Open Interest": OI }) => {
                 if (!instrumentData[Instrument]) instrumentData[Instrument] = {};
                 instrumentData[Instrument][Date] = OI;
-                if (!dates.includes(Date)) dates.push(Date);
+                if (Date !== "Current" && !dates.includes(Date)) dates.push(Date);
             });
-
-            // Ensure "current" is always the last entry
-            dates = dates.filter(date => date !== "current").concat("current");
             
+            dates.push("Current"); // Ensure "Current" is always the last entry
             createInstrumentChips(instrumentData, dates);
         }
 
