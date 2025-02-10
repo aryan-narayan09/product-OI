@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache">
     <title>Open Interest Data</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
@@ -27,9 +28,11 @@
         
         async function fetchData() {
             const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json";
-
+            const cacheBuster = new Date().getTime(); // Unique timestamp
+            const url = `${mainUrl}?_=${cacheBuster}`;
+            
             try {
-                const response = await fetch(mainUrl);
+                const response = await fetch(url, { cache: "no-store" });
                 if (!response.ok) throw new Error("HTTP error fetching data");
                 const mainData = await response.json();
                 generateTables(mainData);
