@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Interest Chart</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .chip-container { margin-bottom: 20px; }
+        .chip { display: inline-block; padding: 8px 12px; margin: 5px; border: 1px solid #ddd; background-color: #f4f4f4; cursor: pointer; border-radius: 16px; }
+        .chip.selected { background-color: #007bff; color: white; }
+        canvas { max-width: 100%; }
+    </style>
+</head>
+<body>
+    <h2>Open Interest Chart</h2>
+    <div class="chip-container" id="instrument-container"></div>
+    <canvas id="chart"></canvas>
+
+    <script>
+        async function fetchData() {
+            const url = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json";
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("HTTP error fetching data");
+                const data = await response.json();
+                processData(data);
+            } catch (error) {
+                console.error("Fetch Error:", error);
+            }
+        }
+
+        function processData(data) {
+            const instrumentData = {};
+            const dates = new Set();
+            
+            data.forEach(({ Date, Instrument, "Open Interest": OI }) => {
+                if (!instrumentData[Instrument]) instrumentData[Instrument] = {};
+                instrumentData[Instrument][Date] = OI;
+                dates.add(Date);
+            });
+
+            const sortedDates = [...dates].sort();
+            createInstrumentChips(instrumentData, sortedDates);
+        }
+
+        function createInstrumentChips(instrumentData, dates) {
+            const container = document.getElementById("instrument-container");
+            Object.keys(instrumentData).forEach(inst => {
+                const chip = document.createElement("div");
+                chip.className = "chip";
+                chip.innerText = inst;
+                chip.onclick = () => toggleInstrument(chip, inst, instrumentData, dates);
+                container.appendChild(chip);
+            });
+        }
+
+        function toggleInstrument(chip, instrument, instrumentData, dates) {
+            chip.classList.toggle("selected");
+            updateChart(instrumentData, dates);
+        }
+
+        function updateChart(instrumentData, dates) {
+            const selectedInstruments = [...document.querySelectorAll(".chip.selected")].map(chip => chip.innerText);
+            const datasets = selectedInstruments.map(inst => ({
+                label: inst,
+                data: dates.map(date => instrumentData[inst][date] || null),
+                borderColor: getRandomColor(),
+                fill: false
+            }));
+            chart.data = { labels: dates, datasets };
+            chart.update();
+        }
+
+        function getRandomColor() {
+            return `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)`;
+        }
+
+        let chart = new Chart(document.getElementById("chart"), {
+            type: "line",
+            data: { labels: [], datasets: [] },
+            options: { responsive: true, scales: { x: { title: { display: true, text: "Date" } }, y: { title: { display: true, text: "Open Interest" } } } }
+        });
+
+        fetchData();
+    </script>
+</body>
+</html>
