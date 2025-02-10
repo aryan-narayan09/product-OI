@@ -8,129 +8,83 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        .chip-container { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
-        .chip { padding: 5px 10px; background-color: #f4f4f4; border: 1px solid #ddd; cursor: pointer; }
+        .chip-container { margin-bottom: 20px; }
+        .chip { display: inline-block; padding: 8px 12px; margin: 5px; border: 1px solid #ddd; background-color: #f4f4f4; cursor: pointer; border-radius: 16px; }
         .chip.selected { background-color: #007bff; color: white; }
-        .product-row { margin-bottom: 10px; }
+        canvas { max-width: 100%; }
     </style>
 </head>
 <body>
     <h2>Open Interest Chart</h2>
-    <div id="instrument-container"></div>
+    <div class="chip-container" id="instrument-container"></div>
     <canvas id="chart"></canvas>
-    
+
     <script>
         async function fetchData() {
-            const response = await fetch("https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json");
-            const data = await response.json();
-            return data;
+            const url = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json";
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("HTTP error fetching data");
+                const data = await response.json();
+                processData(data);
+            } catch (error) {
+                console.error("Fetch Error:", error);
+            }
         }
 
-        function createInstrumentChips(data) {
+        function processData(data) {
+            const instrumentData = {};
+            const dates = new Set();
+            
+            data.forEach(({ Date, Instrument, "Open Interest": OI }) => {
+                if (!instrumentData[Instrument]) instrumentData[Instrument] = {};
+                instrumentData[Instrument][Date] = OI;
+                dates.add(Date);
+            });
+
+            const sortedDates = [...dates].sort();
+            createInstrumentChips(instrumentData, sortedDates);
+        }
+
+        function createInstrumentChips(instrumentData, dates) {
             const container = document.getElementById("instrument-container");
-            container.innerHTML = "";
-            
-            const groupedData = {};
-            data.forEach(({ Product, Instrument }) => {
-                if (!groupedData[Product]) groupedData[Product] = new Set();
-                groupedData[Product].add(Instrument);
-            });
-
-            Object.keys(groupedData).forEach(product => {
-                const productRow = document.createElement("div");
-                productRow.className = "product-row";
-                productRow.innerHTML = `<strong>${product}</strong>`;
-                
-                const chipContainer = document.createElement("div");
-                chipContainer.className = "chip-container";
-                
-                groupedData[product].forEach(instrument => {
-                    const chip = document.createElement("div");
-                    chip.className = "chip";
-                    chip.textContent = instrument;
-                    chip.dataset.instrument = instrument;
-                    chip.dataset.product = product;
-                    chip.addEventListener("click", toggleInstrumentSelection);
-                    chipContainer.appendChild(chip);
-                });
-                
-                productRow.appendChild(chipContainer);
-                container.appendChild(productRow);
+            Object.keys(instrumentData).forEach(inst => {
+                const chip = document.createElement("div");
+                chip.className = "chip";
+                chip.innerText = inst;
+                chip.onclick = () => toggleInstrument(chip, inst, instrumentData, dates);
+                container.appendChild(chip);
             });
         }
 
-        function toggleInstrumentSelection(event) {
-            event.target.classList.toggle("selected");
-            updateChart();
+        function toggleInstrument(chip, instrument, instrumentData, dates) {
+            chip.classList.toggle("selected");
+            updateChart(instrumentData, dates);
         }
 
-        async function updateChart() {
-            const selectedInstruments = Array.from(document.querySelectorAll(".chip.selected"))
-                .map(chip => ({ product: chip.dataset.product, instrument: chip.dataset.instrument }));
-            
-            const data = await fetchData();
-            const chartData = {};
-            
-            selectedInstruments.forEach(({ product, instrument }) => {
-                chartData[product] = chartData[product] || {};
-                chartData[product][instrument] = [];
-            });
-            
-            data.forEach(({ Product, Date, Instrument, "Open Interest": OpenInterest }) => {
-                if (chartData[Product] && chartData[Product][Instrument]) {
-                    chartData[Product][Instrument].push({ x: Date, y: OpenInterest });
-                }
-            });
-            
-            renderChart(chartData);
+        function updateChart(instrumentData, dates) {
+            const selectedInstruments = [...document.querySelectorAll(".chip.selected")].map(chip => chip.innerText);
+            const datasets = selectedInstruments.map(inst => ({
+                label: inst,
+                data: dates.map(date => instrumentData[inst][date] || null),
+                borderColor: getRandomColor(),
+                fill: false
+            }));
+            chart.data = { labels: dates, datasets };
+            chart.update();
         }
 
-        let chartInstance = null;
-        function renderChart(chartData) {
-            const ctx = document.getElementById("chart").getContext("2d");
-            if (chartInstance) chartInstance.destroy();
-            
-            const datasets = [];
-            const colors = ["red", "blue", "green", "purple", "orange", "brown"];
-            let colorIndex = 0;
-            
-            const productAxes = {};
-            let axisIndex = 0;
-            
-            Object.keys(chartData).forEach(product => {
-                productAxes[product] = `y-axis-${axisIndex}`;
-                axisIndex++;
-                Object.keys(chartData[product]).forEach(instrument => {
-                    datasets.push({
-                        label: `${product} - ${instrument}`,
-                        data: chartData[product][instrument],
-                        borderColor: colors[colorIndex % colors.length],
-                        backgroundColor: colors[colorIndex % colors.length],
-                        yAxisID: productAxes[product],
-                    });
-                    colorIndex++;
-                });
-            });
-            
-            const chartOptions = {
-                responsive: true,
-                scales: {
-                    x: { type: "time", time: { unit: "day" } },
-                    ...Object.keys(productAxes).reduce((acc, product) => {
-                        acc[productAxes[product]] = { type: "linear", display: true, position: "left" };
-                        return acc;
-                    }, {}),
-                },
-            };
-            
-            chartInstance = new Chart(ctx, {
-                type: "line",
-                data: { datasets },
-                options: chartOptions,
-            });
+        function getRandomColor() {
+            return `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)`;
         }
-        
-        fetchData().then(createInstrumentChips);
+
+        let chart = new Chart(document.getElementById("chart"), {
+            type: "line",
+            data: { labels: [], datasets: [] },
+            options: { responsive: true, scales: { x: { title: { display: true, text: "Date" } }, y: { title: { display: true, text: "Open Interest" } } } }
+        });
+
+        fetchData();
     </script>
 </body>
 </html>
