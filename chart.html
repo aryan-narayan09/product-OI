@@ -34,37 +34,50 @@
 
         function processData(data) {
             const instrumentData = {};
-            const dates = [];
+            const instrumentDates = {};
             
             data.forEach(({ Date, Instrument, "Open Interest": OI }) => {
-                if (!instrumentData[Instrument]) instrumentData[Instrument] = {};
+                if (!instrumentData[Instrument]) {
+                    instrumentData[Instrument] = {};
+                    instrumentDates[Instrument] = [];
+                }
                 instrumentData[Instrument][Date] = OI;
-                if (Date !== "Current" && !dates.includes(Date)) dates.push(Date);
+                if (Date !== "Current" && !instrumentDates[Instrument].includes(Date)) {
+                    instrumentDates[Instrument].push(Date);
+                }
             });
             
-            dates.push("Current"); // Ensure "Current" is always the last entry
-            createInstrumentChips(instrumentData, dates);
+            createInstrumentChips(instrumentData, instrumentDates);
         }
 
-        function createInstrumentChips(instrumentData, dates) {
+        function createInstrumentChips(instrumentData, instrumentDates) {
             const container = document.getElementById("instrument-container");
             container.innerHTML = "";
             Object.keys(instrumentData).forEach(inst => {
                 const chip = document.createElement("div");
                 chip.className = "chip";
                 chip.innerText = inst;
-                chip.onclick = () => toggleInstrument(chip, inst, instrumentData, dates);
+                chip.onclick = () => toggleInstrument(chip, inst, instrumentData, instrumentDates);
                 container.appendChild(chip);
             });
         }
 
-        function toggleInstrument(chip, instrument, instrumentData, dates) {
+        function toggleInstrument(chip, instrument, instrumentData, instrumentDates) {
             chip.classList.toggle("selected");
-            updateChart(instrumentData, dates);
+            updateChart(instrumentData, instrumentDates);
         }
 
-        function updateChart(instrumentData, dates) {
+        function updateChart(instrumentData, instrumentDates) {
             const selectedInstruments = [...document.querySelectorAll(".chip.selected")].map(chip => chip.innerText);
+            if (selectedInstruments.length === 0) {
+                chart.data = { labels: [], datasets: [] };
+                chart.update();
+                return;
+            }
+            
+            const combinedDates = Array.from(new Set(selectedInstruments.flatMap(inst => instrumentDates[inst])));
+            combinedDates.sort((a, b) => new Date(a) - new Date(b));
+
             const datasets = [];
             const yAxes = {};
             let axisIndex = 0;
@@ -79,15 +92,15 @@
                 };
                 datasets.push({
                     label: inst,
-                    data: dates.map(date => instrumentData[inst][date] || null),
+                    data: combinedDates.map(date => instrumentData[inst][date] ?? null),
                     borderColor: getRandomColor(),
                     fill: false,
                     yAxisID: axisID
                 });
                 axisIndex++;
             });
-
-            chart.data = { labels: dates, datasets };
+            
+            chart.data = { labels: combinedDates, datasets };
             chart.options.scales = { x: { title: { display: true, text: "Date" } }, ...yAxes };
             chart.update();
         }
