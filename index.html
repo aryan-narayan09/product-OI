@@ -15,6 +15,7 @@
         .highlight { background-color: #ffefc1; font-weight: bold; }
         .toggle-btn { margin-bottom: 10px; cursor: pointer; padding: 5px 10px; border: 1px solid #ddd; background-color: #f4f4f4; }
         .bold-row td { font-weight: bold; background-color: #f4f4f4; }
+        .bold-cell { font-weight: bold; }
     </style>
 </head>
 <body>
@@ -24,41 +25,25 @@
     <script>
         async function fetchData() {
             const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json";
-            const currentUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/current_oi.json";
 
             try {
-                const [mainResponse, currentResponse] = await Promise.all([
-                    fetch(mainUrl),
-                    fetch(currentUrl)
-                ]);
-
-                if (!mainResponse.ok || !currentResponse.ok) 
-                    throw new Error("HTTP error fetching data");
-
-                const mainData = await mainResponse.json();
-                const currentData = await currentResponse.json();
-                
-                generateTables(mainData, currentData);
+                const response = await fetch(mainUrl);
+                if (!response.ok) throw new Error("HTTP error fetching data");
+                const mainData = await response.json();
+                generateTables(mainData);
             } catch (error) {
                 console.error("Fetch Error:", error);
                 document.getElementById("tables-container").innerHTML = "Error loading data: " + error;
             }
         }
 
-        function generateTables(mainData, currentData) {
+        function generateTables(mainData) {
             const container = document.getElementById("tables-container");
             container.innerHTML = "";
             
             const groupedData = {};
             const instrumentOrder = {};
             const dateOrder = {};
-            const currentOIMap = {};
-
-            currentData.forEach(entry => {
-                const { Product, Instrument, "Open Interest": OpenInterest } = entry;
-                if (!currentOIMap[Product]) currentOIMap[Product] = {};
-                currentOIMap[Product][Instrument] = OpenInterest;
-            });
 
             mainData.forEach(entry => {
                 const { Product, Date, Instrument, "Open Interest": OpenInterest } = entry;
@@ -90,59 +75,28 @@
                                 <table id='${tableId}' class='display'>
                                 <thead><tr><th>Date</th>`;
                 instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
-                tableHTML += `<th>Total</th></tr></thead><tbody>`;
+                tableHTML += `</tr></thead><tbody>`;
 
                 let previousValues = {};
                 let absoluteData = [];
                 let percentageData = [];
 
-                dates.forEach(date => {
-                    let rowTotal = 0;
+                dates.forEach((date, rowIndex) => {
                     let rowAbsolute = [date];
                     let rowPercentage = [date];
 
-                    instruments.forEach(inst => {
+                    instruments.forEach((inst, colIndex) => {
                         let value = productData[date][inst] || 0;
                         let prevValue = previousValues[inst] || null;
                         let change = prevValue !== null ? ((value - prevValue) / prevValue) * 100 : 0;
-                        rowTotal += value;
                         rowAbsolute.push(value || "-");
                         rowPercentage.push(prevValue !== null ? `${change.toFixed(2)}%` : "-");
                         previousValues[inst] = value;
                     });
 
-                    let prevTotal = absoluteData.length > 0 
-                        ? absoluteData[absoluteData.length - 1].slice(1).reduce((a, b) => a + (parseFloat(b) || 0), 0) 
-                        : null;
-                    let totalChange = prevTotal > 0 ? ((rowTotal - prevTotal) / prevTotal) * 100 : 0;
-                    rowAbsolute.push(`<strong>${rowTotal}</strong>`);
-                    rowPercentage.push(prevTotal !== null ? `<strong>${totalChange.toFixed(2)}%</strong>` : "-");
-
                     absoluteData.push(rowAbsolute);
                     percentageData.push(rowPercentage);
                 });
-
-                let latestRowAbsolute = ["Latest"];
-                let latestRowPercentage = ["Latest"];
-                let latestTotal = 0;
-                let latestPrevTotal = 0;
-
-                instruments.forEach(inst => {
-                    let latestOI = currentOIMap[product]?.[inst] || 0;
-                    let prevValue = previousValues[inst] || null;
-                    let change = prevValue !== null ? ((latestOI - prevValue) / prevValue) * 100 : 0;
-                    latestTotal += latestOI;
-                    latestPrevTotal += prevValue || 0;
-                    latestRowAbsolute.push(`<strong>${latestOI}</strong>`);
-                    latestRowPercentage.push(prevValue !== null ? `<strong>${change.toFixed(2)}%</strong>` : "-");
-                });
-
-                let latestTotalChange = latestPrevTotal > 0 ? ((latestTotal - latestPrevTotal) / latestPrevTotal) * 100 : 0;
-                latestRowAbsolute.push(`<strong>${latestTotal}</strong>`);
-                latestRowPercentage.push(`<strong>${latestTotalChange.toFixed(2)}%</strong>`);
-
-                absoluteData.push(latestRowAbsolute);
-                percentageData.push(latestRowPercentage);
 
                 tableHTML += `</tbody></table>`;
                 
@@ -159,8 +113,16 @@
                         autoWidth: false,
                         responsive: true,
                         data: absoluteData,
-                        createdRow: function(row, data, index) {
-                            if (data[0] === "Latest") $(row).addClass("bold-row");
+                        createdRow: function(row, data, rowIndex) {
+                            if (rowIndex === absoluteData.length - 1) $(row).addClass("bold-row");
+                        },
+                        drawCallback: function(settings) {
+                            const table = this.api();
+                            table.rows().every(function(rowIdx, tableLoop, rowLoop) {
+                                let rowData = this.data();
+                                let lastCellIndex = rowData.length - 1;
+                                $($(this.node()).find('td').eq(lastCellIndex)).addClass("bold-cell");
+                            });
                         }
                     });
                     let isAbsolute = true;
