@@ -42,7 +42,7 @@
                 dates.add(Date);
             });
 
-            const sortedDates = [...dates].sort();
+            const sortedDates = [...dates].sort((a, b) => new Date(a) - new Date(b));
             createInstrumentChips(instrumentData, sortedDates);
         }
 
