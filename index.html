@@ -23,7 +23,16 @@
     <div id="tables-container"></div>
     
     <script>
-        generateTables(mainData);
+
+        document.addEventListener("DOMContentLoaded", function(event) { 
+            var scrollpos = localStorage.getItem('scrollpos');
+            if (scrollpos) window.scrollTo(0, scrollpos);
+        });
+
+        window.onbeforeunload = function(e) {
+            localStorage.setItem('scrollpos', window.scrollY);
+        };
+        
         async function fetchData() {
             const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json";
 
@@ -31,27 +40,11 @@
                 const response = await fetch(mainUrl);
                 if (!response.ok) throw new Error("HTTP error fetching data");
                 const mainData = await response.json();
-                updateLastRow(data);
+                generateTables(mainData);
             } catch (error) {
                 console.error("Fetch Error:", error);
                 document.getElementById("tables-container").innerHTML = "Error loading data: " + error;
             }
-        }
-
-
-        function updateLastRow(data) {
-            data.forEach(({ Instrument, Date, "Open Interest": OI }) => {
-                if (Date === "Current") {
-                    // Find the table row corresponding to the product
-                    const lastRow = document.querySelector(`#table-${Instrument} tbody tr:last-child`);
-                    if (lastRow) {
-                        const oiCell = lastRow.querySelector(".oi-cell"); // Ensure the last row has a specific class
-                        if (oiCell) {
-                            oiCell.textContent = OI; // Update Open Interest value
-                        }
-                    }
-                }
-            });
         }
 
         function generateTables(mainData) {
