@@ -5,175 +5,123 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Open Interest Data</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        .container { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .tables-container { overflow-x: auto; }
+        .chart-container { display: flex; justify-content: center; align-items: center; }
+        canvas { width: 100% !important; height: auto !important; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; cursor: pointer; }
         th { background-color: #f4f4f4; }
-        .highlight { background-color: #ffefc1; font-weight: bold; }
         .toggle-btn { margin-bottom: 10px; cursor: pointer; padding: 5px 10px; border: 1px solid #ddd; background-color: #f4f4f4; }
-        .bold-row td { font-weight: bold; background-color: #f4f4f4; }
     </style>
 </head>
 <body>
     <h2>Open Interest Data</h2>
-    <div id="tables-container"></div>
+    <div class="container">
+        <div class="tables-container" id="tables-container"></div>
+        <div class="chart-container">
+            <canvas id="oiChart"></canvas>
+        </div>
+    </div>
     
     <script>
         async function fetchData() {
             const mainUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/data.json";
-            const currentUrl = "https://raw.githubusercontent.com/aryan-narayan09/product-OI/main/current_oi.json";
-
             try {
-                const [mainResponse, currentResponse] = await Promise.all([
-                    fetch(mainUrl),
-                    fetch(currentUrl)
-                ]);
-
-                if (!mainResponse.ok || !currentResponse.ok) 
-                    throw new Error("HTTP error fetching data");
-
-                const mainData = await mainResponse.json();
-                const currentData = await currentResponse.json();
-                
-                generateTables(mainData, currentData);
+                const response = await fetch(mainUrl);
+                if (!response.ok) throw new Error("HTTP error " + response.status);
+                const mainData = await response.json();
+                generateTables(mainData);
             } catch (error) {
                 console.error("Fetch Error:", error);
                 document.getElementById("tables-container").innerHTML = "Error loading data: " + error;
             }
         }
 
-        function generateTables(mainData, currentData) {
+        function generateTables(mainData) {
             const container = document.getElementById("tables-container");
             container.innerHTML = "";
-            
             const groupedData = {};
-            const instrumentOrder = {};
-            const dateOrder = {};
-            const currentOIMap = {};
-
-            currentData.forEach(entry => {
-                const { Product, Instrument, "Open Interest": OpenInterest } = entry;
-                if (!currentOIMap[Product]) currentOIMap[Product] = {};
-                currentOIMap[Product][Instrument] = OpenInterest;
-            });
-
+            
             mainData.forEach(entry => {
                 const { Product, Date, Instrument, "Open Interest": OpenInterest } = entry;
-                if (!groupedData[Product]) {
-                    groupedData[Product] = {};
-                    instrumentOrder[Product] = [];
-                    dateOrder[Product] = [];
-                }
-                if (!groupedData[Product][Date]) {
-                    groupedData[Product][Date] = {};
-                    dateOrder[Product].push(Date);
-                }
-                if (!instrumentOrder[Product].includes(Instrument)) {
-                    instrumentOrder[Product].push(Instrument);
-                }
-                groupedData[Product][Date][Instrument] = OpenInterest;
+                if (!groupedData[Product]) groupedData[Product] = {};
+                if (!groupedData[Product][Instrument]) groupedData[Product][Instrument] = [];
+                groupedData[Product][Instrument].push({ date: Date, value: OpenInterest });
             });
-
-            const fragment = document.createDocumentFragment();
-
+            
             Object.keys(groupedData).forEach((product, index) => {
                 const productData = groupedData[product];
-                const instruments = instrumentOrder[product];
-                const dates = dateOrder[product];
                 const tableId = `datatable-${index}`;
-                const toggleId = `toggle-${index}`;
+                let tableHTML = `<h3>${product}</h3><table id='${tableId}' class='display'><thead><tr><th>Date</th>`;
+                Object.keys(productData).forEach(inst => tableHTML += `<th>${inst}</th>`);
+                tableHTML += `</tr></thead><tbody>`;
                 
-                let tableHTML = `<h3>${product} <button class='toggle-btn' id='${toggleId}'>Toggle % Change</button></h3>
-                                <table id='${tableId}' class='display'>
-                                <thead><tr><th>Date</th>`;
-                instruments.forEach(inst => tableHTML += `<th>${inst}</th>`);
-                tableHTML += `<th>Total</th></tr></thead><tbody>`;
-
-                let previousValues = {};
-                let absoluteData = [];
-                let percentageData = [];
-
+                const dates = [...new Set(Object.values(productData).flat().map(d => d.date))].sort();
                 dates.forEach(date => {
-                    let rowTotal = 0;
-                    let rowAbsolute = [date];
-                    let rowPercentage = [date];
-
-                    instruments.forEach(inst => {
-                        let value = productData[date][inst] || 0;
-                        let prevValue = previousValues[inst] || null;
-                        let change = prevValue !== null ? ((value - prevValue) / prevValue) * 100 : 0;
-                        rowTotal += value;
-                        rowAbsolute.push(value || "-");
-                        rowPercentage.push(prevValue !== null ? `${change.toFixed(2)}%` : "-");
-                        previousValues[inst] = value;
+                    tableHTML += `<tr><td>${date}</td>`;
+                    Object.keys(productData).forEach(inst => {
+                        const entry = productData[inst].find(d => d.date === date);
+                        tableHTML += `<td class='oi-cell' data-product='${product}' data-instrument='${inst}'>${entry ? entry.value : '-'}</td>`;
                     });
-
-                    let prevTotal = absoluteData.length > 0 
-                        ? absoluteData[absoluteData.length - 1].slice(1).reduce((a, b) => a + (parseFloat(b) || 0), 0) 
-                        : null;
-                    let totalChange = prevTotal > 0 ? ((rowTotal - prevTotal) / prevTotal) * 100 : 0;
-                    rowAbsolute.push(`<strong>${rowTotal}</strong>`);
-                    rowPercentage.push(prevTotal !== null ? `<strong>${totalChange.toFixed(2)}%</strong>` : "-");
-
-                    absoluteData.push(rowAbsolute);
-                    percentageData.push(rowPercentage);
+                    tableHTML += `</tr>`;
                 });
-
-                let latestRowAbsolute = ["Latest"];
-                let latestRowPercentage = ["Latest"];
-                let latestTotal = 0;
-                let latestPrevTotal = 0;
-
-                instruments.forEach(inst => {
-                    let latestOI = currentOIMap[product]?.[inst] || 0;
-                    let prevValue = previousValues[inst] || null;
-                    let change = prevValue !== null ? ((latestOI - prevValue) / prevValue) * 100 : 0;
-                    latestTotal += latestOI;
-                    latestPrevTotal += prevValue || 0;
-                    latestRowAbsolute.push(`<strong>${latestOI}</strong>`);
-                    latestRowPercentage.push(prevValue !== null ? `<strong>${change.toFixed(2)}%</strong>` : "-");
-                });
-
-                let latestTotalChange = latestPrevTotal > 0 ? ((latestTotal - latestPrevTotal) / latestPrevTotal) * 100 : 0;
-                latestRowAbsolute.push(`<strong>${latestTotal}</strong>`);
-                latestRowPercentage.push(`<strong>${latestTotalChange.toFixed(2)}%</strong>`);
-
-                absoluteData.push(latestRowAbsolute);
-                percentageData.push(latestRowPercentage);
-
-                tableHTML += `</tbody></table>`;
                 
-                let tableDiv = document.createElement("div");
+                tableHTML += `</tbody></table>`;
+                const tableDiv = document.createElement("div");
                 tableDiv.innerHTML = tableHTML;
-                fragment.appendChild(tableDiv);
-
+                container.appendChild(tableDiv);
+                
                 setTimeout(() => {
-                    const table = $(`#${tableId}`).DataTable({
-                        paging: false,
-                        searching: false,
-                        ordering: false,
-                        info: false,
-                        autoWidth: false,
-                        responsive: true,
-                        data: absoluteData,
-                        createdRow: function(row, data, index) {
-                            if (data[0] === "Latest") $(row).addClass("bold-row");
-                        }
-                    });
-                    let isAbsolute = true;
-                    document.getElementById(toggleId).addEventListener("click", () => {
-                        isAbsolute = !isAbsolute;
-                        table.clear().rows.add(isAbsolute ? absoluteData : percentageData).draw();
-                    });
+                    $(`#${tableId}`).DataTable({ paging: false, searching: false, ordering: false, info: false });
                 }, 100);
             });
 
-            container.appendChild(fragment);
+            document.querySelectorAll('.oi-cell').forEach(cell => {
+                cell.addEventListener('click', function () {
+                    const product = this.dataset.product;
+                    const instrument = this.dataset.instrument;
+                    plotChart(product, instrument, groupedData);
+                });
+            });
         }
-
+        
+        function plotChart(product, instrument, groupedData) {
+            const data = groupedData[product][instrument].sort((a, b) => new Date(a.date) - new Date(b.date));
+            const labels = data.map(entry => entry.date);
+            const values = data.map(entry => entry.value);
+            
+            if (window.oiChartInstance) window.oiChartInstance.destroy();
+            
+            const ctx = document.getElementById("oiChart").getContext("2d");
+            window.oiChartInstance = new Chart(ctx, {
+                type: "line",
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `${product} - ${instrument} Open Interest`,
+                        data: values,
+                        borderColor: "#007bff",
+                        borderWidth: 2,
+                        fill: false,
+                        pointRadius: 3,
+                        pointHoverRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { x: { title: { display: true, text: "Date" } }, y: { title: { display: true, text: "Open Interest" } } },
+                    plugins: { legend: { display: true } }
+                }
+            });
+        }
+        
         fetchData();
     </script>
 </body>
